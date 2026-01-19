@@ -168,9 +168,10 @@ tags
 
 # Keep global mp4 ignored, but allow demo sample videos to be tracked
 !/demo/samples/*.mp4
+!/assets/main_video.mp4
 
 # RL pipelines may produce mp4 outputs
-*.mp4
+# *.mp4
 # dependencies
 /transformers
 
