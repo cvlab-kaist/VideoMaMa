@@ -1,0 +1,3705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VideoMaMa: Mask-Guided Video Matting via Generative Prior</title>
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Academicons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&family=Sarpanch:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; padding: 0;
+            background-color: #f4f5f7;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6; color: #333;
+        }
+
+        .video-responsive-wrapper {
+            position: relative;
+            padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+            height: 0;
+            overflow: hidden;
+            border-radius: 12px; /* Matches your paper-container radius */
+            background: #000;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            margin-top: 15px;
+        }
+
+        .video-responsive-wrapper iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 0;
+        }
+        
+        /* Loading Screen Styles */
+        #loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 99999;
+            transition: opacity 0.5s ease-out, visibility 0.5s ease-out;
+        }
+        
+        #loading-screen.fade-out {
+            opacity: 0;
+            visibility: hidden;
+        }
+        
+        .loader-content {
+            text-align: center;
+            color: white;
+        }
+        
+        .loader-title {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            letter-spacing: 2px;
+            font-family: 'monospace', 'Arial', sans-serif;
+            background: linear-gradient(120deg, #ffffff, #ff6b6b, #ffffff);
+            background-size: 200% auto;
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: shimmer 3s linear infinite;
+        }
+        
+        @keyframes shimmer {
+            0% { background-position: 0% center; }
+            100% { background-position: 200% center; }
+        }
+        
+        .loader-subtitle {
+            font-size: 1.2rem;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+            font-weight: 300;
+        }
+        
+        .loader-spinner {
+            width: 60px;
+            height: 60px;
+            margin: 0 auto 1.5rem;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #ffffff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .loader-progress {
+            width: 200px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 2px;
+            overflow: hidden;
+            margin: 0 auto;
+        }
+        
+        .loader-progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #ffffff, #ff6b6b);
+            border-radius: 2px;
+            animation: progress 3s ease-in-out;
+            transform-origin: left;
+        }
+        
+        @keyframes progress {
+            0% { width: 0%; }
+            100% { width: 100%; }
+        }
+        
+        .loader-text {
+            margin-top: 1rem;
+            font-size: 0.9rem;
+            opacity: 0.7;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+        
+        /* Hide main content initially */
+        body.loading #main-content {
+            opacity: 0;
+            transition: opacity 0.5s ease-in;
+        }
+        
+        body.loaded #main-content {
+            opacity: 1;
+        }
+        
+        @media (max-width: 768px) {
+            .loader-title {
+                font-size: 2.5rem;
+            }
+            .loader-subtitle {
+                font-size: 1rem;
+            }
+        }
+        
+        /* Animation: Wipes the Red layer (Top) over the Checkerboard layer (Bottom) */
+        @keyframes mattingWipe {
+            0%   { clip-path: inset(0 100% 0 0); } /* Red layer hidden (Show Checkerboard + Outline) */
+            100% { clip-path: inset(0 0 0 0);    } /* Red layer visible (Hide Outline) */
+        }
+
+        @keyframes sheen {
+            0% { background-position: 200% center; }
+            100% { background-position: -200% center; }
+        }
+        @keyframes pulseMatte {
+            0%, 100% { clip-path: inset(0 100% 0 0); } /* Wireframe State */
+            50%      { clip-path: inset(0 0 0 0);    } /* Red Filled State */
+        }
+
+        /* Base Layer (Checkerboard) */
+        h1.title-highlight {
+            position: relative;
+            display: inline-block;
+            color: transparent !important;
+            -webkit-text-fill-color: transparent !important;
+            /* -webkit-text-stroke: 0px transparent; */
+            -webkit-text-stroke: 1px #000000;
+            
+            background-image: conic-gradient(#bfbfbf 0.25turn, #ffffff 0.25turn 0.5turn, #bfbfbf 0.5turn 0.75turn, #ffffff 0.75turn);
+            background-size: 24px 24px;
+            -webkit-background-clip: text;
+            background-clip: text;
+        }
+
+        /* Overlay Layer (Solid color) */
+        h1.title-highlight::before {
+            content: attr(data-text);
+            position: absolute;
+            left: 0; top: 0; width: 100%; height: 100%;
+            color: transparent !important;
+            -webkit-text-fill-color: transparent !important;
+            -webkit-text-stroke: 1px transparent; 
+            
+            /* Use the loading screen's VideoMaMa gradient + shimmer so title matches loader */
+            /* Use the loading screen's VideoMaMa gradient exactly and keep outline/shadow for legibility */
+            background: linear-gradient(120deg, #ffffff, #ff6b6b, #ffffff);
+            background-size: 200% auto;
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent !important;
+
+            /* removed outline so the gradient shows cleanly */
+            -webkit-text-stroke: 0px transparent;
+
+            /* Shimmer (loader) + pulse */
+            animation: shimmer 3s linear infinite, pulseMatte 4s ease-in-out infinite;
+        }
+
+
+
+        /* Hero Section Styles */
+        .hero {
+            background-color: #f5f5f5;
+            padding: 1.5rem 1.5rem 1rem 1.5rem;
+            text-align: center;
+        }
+        
+        .hero-body {
+            padding: 1rem 1.5rem;
+        }
+        
+        .container.is-max-desktop {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .columns {
+            display: flex;
+            margin: 0;
+        }
+        
+        .columns.is-centered {
+            justify-content: center;
+        }
+        
+        .column {
+            flex: 1;
+        }
+        
+        .column.has-text-centered {
+            text-align: center;
+        }
+        
+        .title {
+            font-weight: 700;
+            line-height: 1.2;
+            margin-bottom: 1rem;
+            color: #363636;
+        }
+        
+        .title.is-2 {
+            font-size: 2.5rem;
+        }
+        
+        .title.is-3 {
+            font-size: 2rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .publication-title {
+            margin-bottom: 0.5rem;
+        }
+        
+        .is-size-5 {
+            font-size: 1.25rem;
+        }
+        
+        .publication-authors {
+            margin-bottom: 1rem;
+            line-height: 1.8;
+        }
+        
+        .author-block {
+            display: inline;
+        }
+        
+        .author-block a {
+            color: #3273dc;
+            text-decoration: none;
+        }
+        
+        .author-block a:hover {
+            text-decoration: underline;
+        }
+        
+        .publication-links {
+            display: flex;
+            justify-content: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            margin-top: 1.5rem;
+        }
+        
+        .link-block {
+            display: inline-block;
+        }
+        
+        .button {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            background-color: #363636;
+            color: white;
+            text-decoration: none;
+            border-radius: 290486px;
+            font-weight: 600;
+            transition: all 0.2s;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        
+        .button.is-normal {
+            font-size: 1rem;
+        }
+        
+        .button.is-rounded {
+            border-radius: 290486px;
+        }
+        
+        .button.is-dark {
+            background-color: #363636;
+        }
+        
+        .button:hover {
+            background-color: #4a4a4a;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        
+        .button .icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .button .icon img {
+            width: 1em;
+            height: 1em;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1.5rem;
+        }
+        
+        .section {
+            padding: 1.5rem 1.5rem;
+        }
+        
+        .section-title-header {
+            text-align: center;
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            color: #363636;
+        }
+        
+        /* Paper Container Styles */
+        .paper-container {
+            position: relative;
+            max-width: 90%; 
+            margin: 0 auto 30px auto;
+            background-color: #ffffff;
+            padding: 40px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+            border-radius: 12px;
+        }
+        
+        h2 { 
+            margin-top: 0; 
+            padding-bottom: 15px; 
+            border-bottom: 1px solid #eee; 
+            font-size: 1.5rem; 
+        }
+        
+        p { 
+            margin-bottom: 20px; 
+            text-align: justify; 
+        }
+
+        .compare-wrapper {
+            width: 100%; margin: 30px auto;
+            display: flex; flex-direction: column; align-items: center;
+        }
+        .compare-wrapper .video-overlay,
+        .compare-wrapper .video-caption {
+            pointer-events: none; 
+        }
+        
+        .compare-row {
+            display: flex;
+            justify-content: center;
+            gap: 10px; 
+            width: 100%;
+        }
+        
+        .video-item-group {
+            flex: 1; 
+            display: flex;
+            flex-direction: column; 
+            align-items: center; 
+        }
+
+        .video-container {
+            flex: 1; 
+            position: relative;
+            background-color: rgba(0, 0, 0, 0); 
+            border-radius: 8px;
+            overflow: hidden;
+            aspect-ratio: 4 / 4; 
+        }
+
+        .video-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.301); 
+            z-index: 5; 
+            pointer-events: none; 
+            opacity: 1; 
+            transition: opacity 0.3s ease; 
+            border-radius: 8px; 
+        }
+
+        .no-overlay .video-overlay,
+        .no-overlay .label-badge {
+            opacity: 0 !important; 
+        }
+
+        .label-badge { 
+            position: absolute; 
+            top: 45%; 
+            padding: 5px 20px; 
+            background: rgba(255, 255, 255, 0.291); 
+            color: #fff; 
+            font-size: 13px; 
+            border-radius: 0px; 
+            pointer-events: none; 
+            z-index: 20; 
+            font-weight: bold; 
+            backdrop-filter: blur(2px);
+            -webkit-backdrop-filter: blur(2px); 
+        }
+
+        .bento-label-badge { 
+            position: absolute; 
+            bottom: 5%; 
+            left: 5%;
+            padding: 5px 20px; 
+            background: rgba(0, 0, 0, 0.291); 
+            color: #ffffff; 
+            font-size: 13px; 
+            border-radius: 0px; 
+            pointer-events: none; 
+            z-index: 20; 
+            font-weight: bold; 
+            backdrop-filter: blur(2px); 
+            -webkit-backdrop-filter: blur(2px); 
+            white-space: nowrap; 
+            text-align: center;
+            display: flex;
+            flex-direction: column; 
+            align-items: center;    
+            justify-content: center;
+
+        }
+        .label-left { left: 10px; } 
+        .label-right { right: 10px; }
+
+
+            
+        .label-center {
+            position: absolute;
+            top: auto;       
+            bottom:3px;    
+            left: 50%;       
+            transform: translateX(-50%); 
+            z-index: 100;     
+        }
+
+        
+        .bento-label-badge .badge-sub {
+            display: block;       
+            font-size: 0.85em;    
+            font-weight: normal;  
+            margin-top: 1px;      
+        }
+
+
+        @media (max-width: 768px) {
+            .title.is-2 {
+                font-size: 2rem;
+            }
+            
+            .title.is-3 {
+                font-size: 1.5rem;
+            }
+            
+            .is-size-5 {
+                font-size: 1rem;
+            }
+            
+            .publication-links {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .button {
+                width: 100%;
+                justify-content: center;
+            }
+            
+            .section-title-header {
+                font-size: 1.5rem;
+            }
+            
+            .compare-row {
+                flex-direction: column;
+            }
+            
+            .gallery-grid { 
+                grid-template-columns: repeat(3, 1fr); 
+            }
+            
+            .paper-container { 
+                padding: 20px; 
+                width: 95%; 
+            }
+            
+            .columns {
+                flex-direction: column;
+            }
+        }
+
+
+        
+
+        .video-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            object-fit: contain; pointer-events: none;
+        }
+        #video-back { z-index: 1; }
+        #video-front { z-index: 2; clip-path: inset(0 50% 0 0); }
+        
+        .slider-ui { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            z-index: 10; 
+            cursor: ew-resize; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+        }
+
+        .slider-line {
+            position: absolute; 
+            top: 0; bottom: 0; 
+            width: 2px;
+            background: rgba(255, 255, 255, 0.9); 
+            box-shadow: 0 0 5px rgba(0,0,0,0.5);
+            transform: translateX(-50%); 
+            pointer-events: none;
+            z-index: 1; 
+        }
+
+        .slider-handle {
+            position: absolute; 
+            top: 50%; 
+            left: 50%; 
+            width: 30px; 
+            height: 30px; 
+            background: rgba(255, 255, 255, 0.3); 
+            border-radius: 50%; 
+            border: none; 
+            transform: translate(-50%, -50%); 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            pointer-events: none; 
+            z-index: 2; 
+            
+            opacity: 0; 
+            transition: opacity 0.3s ease; 
+        }
+
+        .slider-handle::before { 
+            content:'◀︎▶︎'; 
+            font-size:14px; 
+            color: #3333334a; 
+            line-height: 1; 
+            margin-left: 0px; 
+        }
+
+        .slider-active-labels {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; 
+            z-index: 10;
+            
+            opacity: 0; 
+            transition: opacity 0.3s; 
+        }
+
+        .active-label {
+            position: absolute;
+            bottom: 0%;
+            transform: translateY(-50%); 
+            padding: 2px 5px 2px 5px;
+            font-size: 0.7rem;
+            font-weight: bold;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.5);
+            border-radius: 6px;
+            transition: opacity 0.3s ease-out;
+        }
+
+        .slider-active-labels .label-left {
+            left: 10px;
+        }
+
+        .slider-active-labels .label-right {
+            right: 10px;
+        }
+
+        .video-container.with-slider:hover .slider-handle {
+            opacity: 1; 
+        }
+
+        
+        .video-container:hover .slider-active-labels {
+            opacity: 1; 
+        }
+
+        .active-label.hidden {
+            opacity: 0 !important; 
+        }
+        .caption { margin-top: 25px; margin-bottom: 30px; font: 0.9rem; color: #666; text-align: center; }
+
+        .label-left { left: 15px; } .label-right { right: 15px; }
+        .video-caption {
+            margin-top: 8px;
+            font-size: 15px;
+            color: #555;
+            text-align: center;
+            font-weight: 600;
+        }
+        .gallery-section {
+            margin-top: 10px;
+            padding-top: 10px;
+        }
+
+        .gallery-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 15px;
+            margin-bottom: 50px;
+        }
+
+        .gallery-item {
+            cursor: pointer;
+            border-radius: 8px;
+            overflow: hidden;
+            transition: transform 0.2s, box-shadow 0.2s;
+            background: #fff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            border: 2px solid transparent; 
+        }
+
+        .gallery-item:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .gallery-item.active {
+            border-color: #3b82f6; 
+            background-color: #eff6ff;
+        }
+
+        .gallery-thumb {
+            width: 100%;
+            aspect-ratio: 16/9; 
+            object-fit: cover;
+            display: block;
+            background-color: #eee;
+        }
+
+        .gallery-label {
+            padding: 2px 2px;
+            text-align: center;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #444;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .gallery-title-container {
+            width: 100%;
+            text-align: center;
+            margin-top: 20px; 
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-size: 24px; 
+            font-weight: 700; 
+            color: #333; 
+            display: inline-block; 
+        }
+
+        .gallery-section {
+            margin-bottom: 20px; 
+        }
+
+        .pagination-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .nav-btn {
+            width: 40px; height: 40px;
+            border-radius: 50%;
+            border: none;
+            background: #3b82f6; 
+            color: white;
+            font-size: 1.2rem;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: background 0.2s;
+            box-shadow: 0 2px 6px rgba(59, 130, 246, 0.3);
+        }
+
+        .nav-btn:hover { background: #2563eb; }
+        .nav-btn:disabled { background: #ccc; cursor: not-allowed; box-shadow: none; }
+        .page-info { font-size: 0.9rem; color: #666; font-weight: 500; }
+
+        @media (max-width: 768px) {
+            .gallery-grid { grid-template-columns: repeat(3, 1fr); }
+            .paper-container { padding: 20px; width: 95%; }
+        }
+
+
+        .bento-wrapper {
+            position: relative;
+            display: flex;
+            width: 80%;
+            aspect-ratio: 5 / 3; 
+            gap: 15px; 
+            margin: 0 auto 50px auto;
+            transition: all 0.3s ease;
+        }
+        
+        /* Adaptive sizing based on video aspect ratio */
+        .bento-wrapper.portrait-video {
+            width: 60%;
+            aspect-ratio: 3 / 4;
+        }
+        
+        .bento-wrapper.landscape-video {
+            width: 85%;
+            aspect-ratio: 16 / 9;
+        }
+        
+        .bento-wrapper.square-video {
+            width: 70%;
+            aspect-ratio: 1 / 1;
+        }
+
+        .bento-col-left {
+            display: flex;
+            flex-direction: column;
+            flex: 2; 
+            gap: 15px; 
+        }
+
+        .bento-col-right {
+            flex: 1.5; 
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .bento-box {
+            position: relative;
+            width: 100%;
+            background: #ffffff00;
+            border-radius: 12px; 
+            overflow: hidden;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+
+        .small-box {
+            flex: 1; 
+        }
+
+        .bento-box.big-box {
+            flex: 1;      
+            
+            width: 100%;
+            position: relative;
+            
+            background: #ffffff00; 
+            
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+
+        .bento-vid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain; 
+            display: block;
+        }
+
+        /* Citation / BibTeX styling */
+        .citation-bib {
+            background: #fafafa;
+            border: 1px solid #eee;
+            padding: 16px;
+            border-radius: 8px;
+            font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
+            font-size: 0.95rem;
+            color: #333;
+            white-space: pre-wrap;
+            line-height: 1.4;
+            margin-top: 12px;
+        }
+
+        @media (max-width: 768px) {
+            .bento-wrapper {
+                flex-direction: column;
+                aspect-ratio: auto;
+                height: auto;
+                width: 95%;
+            }
+            .bento-wrapper.portrait-video,
+            .bento-wrapper.landscape-video,
+            .bento-wrapper.square-video {
+                width: 95%;
+                aspect-ratio: auto;
+            }
+            .bento-col-left { flex-direction: row; aspect-ratio: 2/1; }
+            .bento-col-right { aspect-ratio: 16/9; }
+        }
+
+        .bento-switch-button { 
+            position: absolute; 
+            top: 12px;
+            right: 12px;
+            z-index: 50;
+            
+            display: flex; 
+            gap: 4px;
+            
+            background: rgba(0, 0, 0, 0.6);
+            padding: 4px;
+            border-radius: 8px;
+            backdrop-filter: blur(4px);
+        }
+
+        .bento-btn { 
+            padding: 6px 12px;
+            border: none;
+            background: transparent;
+            color: #bbbbbb;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .bento-btn:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .bento-btn.active {
+            background-color: #ffffff;
+            color: #333333;
+            font-weight: bold;
+        }
+
+        .nav-floating-btn {
+            position: absolute;
+            top: 35%;
+            transform: translateY(-50%);
+            
+            width: 50px;
+            height: 50px;
+            
+            background-color: #ffffff;
+            color: #333;
+            border: 1px solid #eee;
+            border-radius: 50%; 
+            
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            
+            z-index: 9999; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15); 
+            transition: all 0.2s ease;
+        }
+
+        .nav-floating-btn:hover {
+            background: #3b82f6;
+            color: #ffffff;
+            transform: translateY(-50%) scale(1.1); 
+            box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+        }
+
+        .btn-left {
+            left: 10px; 
+        }
+
+        .btn-right {
+            right: 10px; 
+        }
+
+    
+        @media (max-width: 1200px) {
+            .btn-left { left: -20px; }
+            .btn-right { right: -20px; }
+        }
+
+        
+        .master-wrapper {
+            display: flex;
+            flex-direction: column; 
+            gap: 10px; 
+            padding: 20px;
+            background-color: #f8f8f8;
+            border-radius: 20px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+            margin-top: 60px;
+            position: relative;
+            width: 90%;
+            margin-left: auto;
+            margin-right: auto;
+            padding-top: 2%; 
+            padding-bottom: 5%; 
+        }
+
+        
+        .layout-section {
+            background-color: #fff;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            position: relative;
+            height: 70%;
+        }
+
+        
+        .compare-section-title {
+            position: absolute;
+            top: 3%;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 1.0em;
+            font-weight: bold;
+            
+            
+            padding: 5px 15px;
+            border-radius: 5px;
+            z-index: 5;
+        }
+
+        
+        .input-section {
+            height: 280px; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .input-video-container {
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .mask-only-container .model-video-box {
+            width: 200px;
+            height: 100%;
+            position: relative;
+            border: 2px solid #ccc;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .mask-only-container .content-vid {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background-color: #ffffff00;
+        }
+
+
+        
+        .comparison-group-wrapper {
+            display: flex;
+            gap: 20px; 
+            margin-top: 15px;
+        }
+        .comparison-section {
+            flex: 1; 
+            display: flex;
+            gap: 15px; 
+            padding: 25px;
+        }
+
+        
+        .model-video-box {
+            flex: 1;
+            position: relative;
+            
+            min-height: 250px;
+            max-width: 50%; 
+            border-radius: 8px;
+            overflow: hidden;
+            background-color: #eeeeee00;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0);
+        }
+        .model-video-box .content-vid {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        
+        .model-video-box, 
+        .model-video-box video, 
+        .input-video-container,
+        .content-vid {
+            pointer-events: auto !important; 
+            cursor: pointer !important;      
+            z-index: 1;                      
+        }
+
+        
+        .bento-label-badge {
+            pointer-events: none; 
+        }
+        
+
+        
+        .mode-switch-button {
+            
+            
+            
+            display: flex;
+            gap: 4px; 
+            
+            
+            background: rgba(0, 0, 0, 0.6);
+            padding: 4px;
+            border-radius: 8px;
+            backdrop-filter: blur(4px);
+            
+            
+            border: none;
+            height: auto; 
+            overflow: visible;
+        }
+
+        
+        .mode-switch-button .mode-btn {
+            
+            padding: 6px 16px; 
+            width: auto;       
+            min-width: 80px;   
+            
+            border: none;
+            background: transparent;
+            color: #bbbbbb;    
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+        }
+
+        
+        .mode-switch-button .mode-btn:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+        }
+
+        
+        .mode-switch-button .mode-btn.active {
+            background-color: #ffffff; 
+            color: #333333;            
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        
+        .mode-switch-button .mode-btn:first-child {
+            border-right: none;
+        }
+
+        .input-video-container.twin-container {
+            height: 100%;
+            display: flex; 
+            gap: 15px; 
+            justify-content: center;
+            align-items: center;
+        }
+
+        
+        .input-video-container .input-box {
+            width: 300px; 
+            /* height: 100%; */
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .input-video-container .content-vid {
+            width: 100%;
+            height: 100%;
+            object-fit: cover; 
+        }
+        
+        .input-video-container .mask-box .content-vid {
+            object-fit: contain; 
+            background-color: #00000000;
+        }
+
+        .global-mode-switch-container {
+            position: absolute;
+            bottom: 1.5%;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 15;
+        }
+
+        
+        
+        .model-video-box .content-vid,
+        .input-video-container .content-vid {
+            margin-top: 10%;
+            width: 100%;
+            height: 70%;
+            object-fit: contain; 
+            background-color: rgba(0, 0, 0, 0); 
+        }
+
+        
+        #master-layout-container video::-webkit-media-controls {
+            display: none !important;
+        }
+        #master-layout-container video {
+            pointer-events: none; 
+        }
+
+        
+        #nl-input-rgb {
+            pointer-events: auto; 
+        }
+        
+
+
+        #compare-gallery-grid {
+            display: grid;
+            
+            
+            width: 35%; 
+            margin: 10px auto; 
+            
+            
+            grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+            
+            gap: 8px; 
+            padding-bottom: 20px;
+        }
+
+        
+        #compare-gallery-grid .gallery-item {
+            cursor: pointer;
+            border: 2px solid transparent;
+            border-radius: 6px;
+            overflow: hidden;
+            transition: all 0.2s ease;
+            background-color: #eee;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            
+            
+            aspect-ratio: 16 / 9;
+        }
+
+        
+        #compare-gallery-grid .gallery-item:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+            z-index: 1; 
+        }
+
+        
+        #compare-gallery-grid .gallery-item.active {
+            border-color: #007bff;
+            box-shadow: 0 0 0 2px rgba(0,123,255,0.2);
+        }
+
+        
+        #compare-gallery-grid .gallery-label {
+            text-align: center;
+            padding: 4px;
+            font-size: 0.7rem; 
+            font-weight: 600;
+            color: #555;
+            background-color: #fff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        
+        #compare-gallery-grid .gallery-thumb {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+
+        
+
+        
+        @media (max-width: 1024px) {
+            #compare-gallery-grid {
+                width: 60%; 
+                grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); 
+            }
+        }
+
+        
+        @media (max-width: 768px) {
+            #compare-gallery-grid {
+                width: 90%; 
+                grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); 
+                gap: 10px;
+            }
+        }
+
+        @media (max-width: 1024px) {
+    
+            
+            .master-wrapper {
+                width: 90%; 
+                padding: 20px;
+                margin-top: 30px;
+            }
+
+            
+            #compare-gallery-grid {
+                width: 70%; 
+            }
+
+            
+            .section-title {
+                font-size: 0.8rem;
+                padding: 3px 10px;
+            }
+            .bento-label-badge {
+                font-size: 0.7rem;
+                padding: 4px 8px;
+            }
+        }
+
+        
+        @media (max-width: 768px) {
+
+            
+            .global-mode-switch-container {
+            position: absolute;
+            bottom: 1%;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 15;
+            }
+
+            
+            .comparison-group-wrapper {
+                flex-direction: column;
+                gap: 40px; 
+            }
+
+            
+            .input-video-container.twin-container {
+                gap: 10px;
+                height: auto; 
+                aspect-ratio: 32/9; 
+            }
+
+            
+            .comparison-section {
+                height: auto; 
+                padding: 15px;
+                gap: 10px;
+            }
+
+            
+            .model-video-box, 
+            .input-box {
+                width: 100%; 
+                min-height: 150px; 
+                aspect-ratio: 16/9; 
+            }
+
+            
+            
+            
+            .master-wrapper .nav-floating-btn {
+                width: 35px;
+                height: 35px;
+                font-size: 1rem;
+            }
+            .master-wrapper .btn-left { left: -10px; }
+            .master-wrapper .btn-right { right: -10px; }
+
+            
+            .mode-switch-button .mode-btn {
+                min-width: 60px;
+                padding: 4px 10px;
+                font-size: 11px;
+            }
+
+            
+            .bento-label-badge {
+                font-size: 10px;
+                padding: 3px 6px;
+                top: 5px;
+                left: 5px;
+            }
+            
+            
+            .section-title {
+                bottom: -25px; 
+                font-size: 0.75rem;
+            }
+
+            
+            #compare-gallery-grid {
+                width: 95%; 
+                grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); 
+                gap: 8px;
+            }
+            
+            .mode-switch-button {
+                padding: 3px;       
+                border-radius: 6px; 
+                gap: 2px;           
+                
+                
+                margin-top: 15px;
+            }
+
+            
+            .mode-switch-button .mode-btn {
+                min-width: 0;       
+                width: auto;        
+                flex: 1;            
+                
+                padding: 5px 10px;  
+                font-size: 10px;    
+                border-radius: 4px;
+                
+                white-space: nowrap; 
+            }
+            
+            
+            .mode-switch-button .mode-btn.active {
+                box-shadow: 0 1px 2px rgba(0,0,0,0.15); 
+            }
+        }
+        
+        
+
+
+    </style>
+</head>
+<body class="loading">
+
+<!-- Loading Screen -->
+<div id="loading-screen">
+    <div class="loader-content">
+        <div class="loader-title">VideoMaMa</div>
+        <div class="loader-subtitle">Mask-Guided Video Matting via Generative Prior</div>
+        <div class="loader-spinner"></div>
+        <div class="loader-progress">
+            <div class="loader-progress-bar"></div>
+        </div>
+        <div class="loader-text">Loading videos and content...</div>
+    </div>
+</div>
+
+<!-- Main Content Wrapper -->
+<div id="main-content">
+
+<!-- Hero Section -->
+<section class="hero">
+    <div class="hero-body">
+        <div class="container is-max-desktop head">
+            <div class="columns is-centered">
+                <div class="column has-text-centered head">
+                    <!-- Project Title with Gradient -->
+                    <h1 class="title is-2 publication-title title-highlight" 
+                        data-text="VideoMaMa:"
+                        style="font-size:64px; font-family: 'monospace', 'Arial', sans-serif; font-weight: 700; letter-spacing: 2px;">
+                        VideoMaMa:
+                    </h1>
+                    
+                    <!-- Subtitle -->
+                    <h1 class="title is-3 publication-title"> 
+                        Mask-Guided Video Matting via Generative Prior
+                    </h1>
+
+                    <!-- Authors -->
+                    <div class="is-size-5 publication-authors">
+                        <span class="author-block">
+                            <a href="https://sites.google.com/view/sangbeomlim/home">Sangbeom Lim</a><sup>1</sup>,&nbsp;&nbsp;</span>
+                        <span class="author-block">
+                            <a href="https://sites.google.com/view/seoungwugoh">Seoung Wug Oh</a><sup>2</sup>,&nbsp;&nbsp;</span>
+                        <span class="author-block">
+                            <a href="https://gabriel-huang.github.io/">Jiahui Huang</a><sup>2</sup>,&nbsp;&nbsp;</span>
+                        <span class="author-block">
+                            <a href="https://yoon-heez.github.io/">Heeji Yoon</a><sup>3</sup>,</span>
+                        <br>
+                        <span class="author-block">
+                            <a href="https://cvlab.kaist.ac.kr/members/faculty">Seungryong Kim</a><sup>3</sup>,&nbsp;&nbsp;</span>
+                        <span class="author-block">
+                            <a href="https://joonyoung-cv.github.io/">Joon-Young Lee</a><sup>2</sup></span>
+                    </div>
+
+                    <!-- Affiliations -->
+                    <div class="is-size-5 publication-authors">
+                        <span class="author-block"><sup>1</sup>Korea University</span>
+                        <span class="author-block"><sup>2</sup>Adobe Research</span>
+                        <span class="author-block"><sup>3</sup>KAIST AI</span>
+                    </div>
+                    
+                    <!-- Conference -->
+                    <div class="is-size-5 publication-authors">
+                        <span class="author-block">
+                            <strong style="color: #3b7ccb;">arXiv 2026</strong>
+                        </span>
+                    </div>
+
+                    <!-- Links -->
+                    <div class="column has-text-centered">
+                        <div class="publication-links">
+                            <!-- arXiv Link -->
+                            <span class="link-block">
+                                <a href="#" target="_blank"
+                                   class="external-link button is-normal is-rounded is-dark">
+                                    <span class="icon">
+                                        <i class="ai ai-arxiv"></i>
+                                    </span>
+                                    <span>arXiv</span>
+                                </a>
+                            </span>
+
+                            <!-- Code Link -->
+                            <span class="link-block"> 
+                                <a href="https://github.com/cvlab-kaist/VideoMaMa" target="_blank"
+                                   class="external-link button is-normal is-rounded is-dark">
+                                    <span class="icon">
+                                        <i class="fab fa-github"></i>
+                                    </span>
+                                    <span>Code</span>
+                                </a>
+                            </span>
+                            
+                            <!-- Demo Link -->
+                            <span class="link-block">
+                                <a href="https://huggingface.co/spaces/SammyLim/VideoMaMa" target="_blank"
+                                   class="external-link button is-normal is-rounded is-dark">
+                                    <span class="icon">
+                                        <i class="fas fa-play"></i>
+                                    </span>
+                                    <span>Demo</span>
+                                </a>
+                            </span>
+
+                            <!-- Video Link -->
+                            <span class="link-block">
+                                <a href="https://www.youtube.com/watch?v=FLIJaIeY8DU&embeds_referring_euri=https%3A%2F%2Fsangbeomlim.github.io%2F&source_ve_path=Mjg2NjY" target="_blank"
+                                   class="external-link button is-normal is-rounded is-dark">
+                                    <span class="icon">
+                                        <i class="fab fa-youtube"></i>
+                                    </span>
+                                    <span>Video</span>
+                                </a>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- YouTube Video Section -->
+<section class="section">
+    <div class="container">
+        <div class="paper-container">
+            <h2 class="section-title-header">VideoMaMa Demo</h2>
+            <p class="caption">The results shown in this video were generated using the demo application available on 
+                <a href="https://huggingface.co/spaces/SammyLim/VideoMaMa" target="_blank" rel="noopener noreferrer">Hugging Face</a>
+                and
+                <a href="https://github.com/cvlab-kaist/VideoMaMa/tree/main/demo" target="_blank" rel="noopener noreferrer">GitHub</a>.
+            </p>
+            <div class="video-responsive-wrapper" id="youtube-wrapper" onmouseenter="focusVideo()">
+                <iframe 
+                    src="https://www.youtube.com/embed/FLIJaIeY8DU" 
+                    title="VideoMaMa Presentation" 
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                    allowfullscreen>
+                </iframe>
+            </div>
+            Video MP4 file is also available on <a href="https://github.com/cvlab-kaist/VideoMaMa/blob/main/assets/main_video.mp4" target="_blank" rel="noopener noreferrer">Github</a>.
+            
+        </div>
+    </div>
+</section>
+
+<!-- In the Wild Section - Now first -->
+<section class="section">
+    <div class="container">
+        <div class="paper-container">
+            <h2 class="section-title-header">VideoMaMa in-the-wild Results</h2>
+            
+            <div class="bento-wrapper" id="bento-container">
+                <div class="bento-col-left">
+                    <div class="bento-box small-box">
+                        <div class="bento-label-badge">Input RGB</div>
+                        <video id="b-top-left" class="bento-vid" muted loop playsinline preload="metadata">
+                            <source src="" type="video/mp4">
+                        </video>
+                    </div>
+                    <div class="bento-box small-box">
+                        <div class="bento-label-badge">Input Mask</div>
+                        <video id="b-bot-left" class="bento-vid" muted loop playsinline preload="metadata">
+                            <source src="" type="video/mp4">
+                        </video>
+                    </div>
+                </div>
+
+                <div class="bento-col-right">
+                    <div class="bento-box big-box">
+                        <div class="bento-switch-button">
+                            <button type="button" id="btn-alpha" class="bento-btn active" onclick="switchBentoMain('alpha')">Pred. Alpha</button>
+                            <button type="button" id="btn-comp" class="bento-btn" onclick="switchBentoMain('comp')">Composition</button>
+                        </div>
+                        <div class="bento-label-badge">Result</div>
+                        <video id="b-main" class="bento-vid" muted loop playsinline preload="metadata">
+                            <source src="" type="video/mp4">
+                        </video>
+                    </div>
+                </div>
+            </div>
+            
+            <p class="caption"><strong>Qualitative results of VideoMaMa on in-the-wild videos.</strong><br>
+                The input masks are generated using SAM2 by manually providing a point prompt on the first frame. Click to pause or resume.</p>
+            
+            <div style="height: 15px;"></div>
+            <div class="gallery-title-container">
+                <h2 class="section-title">Choose a video</h2>
+            </div>
+            <section class="gallery-section">
+                <div class="gallery-grid" id="bento-gallery-grid">
+                </div>
+
+                <div class="pagination-controls">
+                    <button class="nav-btn" id="bento-prev" onclick="changeBentoPage(-1)">&#8249;</button>
+                    <span class="page-info" id="bento-page-info">Page 1 / 1</span>
+                    <button class="nav-btn" id="bento-next" onclick="changeBentoPage(1)">&#8250;</button>
+                </div>
+            </section>
+            <button class="nav-floating-btn btn-left" onclick="navigateBento(-1)">&#10094;</button>
+            <button class="nav-floating-btn btn-right" onclick="navigateBento(1)">&#10095;</button>
+        </div>
+    </div>
+</section>
+
+<!-- Abstract Section -->
+<section class="section">
+    <div class="container">
+        <div class="paper-container">
+            <h2 class="section-title-header">Abstract</h2>
+            <p class="abstract-text">
+                Generalizing video matting models to real-world videos remains a significant challenge due to the scarcity of labeled data. To address this, we present Video Mask-to-Matte Model (VideoMaMa) that converts coarse segmentation masks into pixel accurate alpha mattes, by leveraging pretrained video diffusion models. VideoMaMa demonstrates strong zero-shot generalization to real-world footage, even though it is trained solely on synthetic data. Building on this capability, we develop a scalable pseudo-labeling pipeline for large-scale video matting and construct the Matting Anything in Video (MA-V) dataset, which offers high-quality matting annotations for more than 50K real-world videos spanning diverse scenes and motions. To validate the effectiveness of this dataset, we fine-tune the SAM2 model on MA-V to obtain SAM2-Matte, which outperforms the same model trained on existing matting datasets in terms of robustness on in-the-wild videos. These findings emphasize the importance of large-scale pseudo-labeled video matting and showcase how generative priors and accessible segmentation cues can drive scalable progress in video matting research. All models and the MA-V dataset will be publicly released.
+            </p>
+        </div>
+    </div>
+</section>
+
+<!-- SA-V vs MA-V Comparison Section - Now after Abstract -->
+<section class="section">
+    <div class="container">
+        <div class="paper-container">
+            <h2 class="section-title-header">Matting Anything in Video (MA-V) Dataset</h2>
+            <button class="nav-floating-btn btn-left" onclick="navigateComparison(-1)">&#10094;</button>
+
+            <section class="compare-wrapper">
+                <div class="compare-row">
+                    
+                    <div class="video-item-group">
+                    <div class="video-container">
+                        <video class="video-layer" muted loop playsinline autoplay style="position: relative; z-index: 1;">
+                            <source src="videos/sav_039607_manual_0_rgb.mp4" type="video/mp4">
+                        </video>
+                    </div>
+                    <div class="video-caption">Input Video</div>
+                    </div>
+
+                    <div class="video-item-group" id="slider-container-a">
+                    <div class="video-container with-slider">
+                        <video class="video-back video-layer" muted loop playsinline>
+                            <source src="videos/sav_039607_manual_0_rgb.mp4" type="video/mp4"> 
+                        </video>
+                        <video class="video-front video-layer" muted loop playsinline>
+                            <source src="videos/sav_039607_manual_0_pred_alpha.mp4" type="video/mp4"> 
+                        </video>
+                        <div class="video-overlay"></div>
+                        <div class="slider-ui">
+                            <div class="slider-line"></div>
+                            <div class="slider-handle"></div>
+                        </div>
+                        <div class="label-badge label-left">SA-V</div>
+                        <div class="label-badge label-right">MA-V</div>
+                        
+                        <div class="slider-active-labels">
+                            <div class="active-label label-left" id="active-label-a-left">SA-V</div>
+                            <div class="active-label label-right" id="active-label-a-right">MA-V</div>
+                        </div>
+
+                    </div>
+                    <div class="video-caption">Mask Comparison</div>
+                    </div>
+                    <div class="video-item-group" id="slider-container-b">
+                    <div class="video-container with-slider">
+                        <video class="video-back video-layer" muted loop playsinline>
+                            <source src="videos/sav_039607_manual_0_rgb.mp4" type="video/mp4"> 
+                        </video>
+                        <video class="video-front video-layer" muted loop playsinline>
+                            <source src="videos/sav_039607_manual_0_pred_alpha.mp4" type="video/mp4"> 
+                        </video>
+                        <div class="video-overlay"></div>
+
+                        <div class="slider-ui">
+                            <div class="slider-line"></div>
+                            <div class="slider-handle"></div>
+                        </div>
+
+                        <div class="label-badge label-left">SA-V</div>
+                        <div class="label-badge label-right">MA-V</div>
+
+                        <div class="slider-active-labels">
+                            <div class="active-label label-left" id="active-label-a-left">SA-V</div>
+                            <div class="active-label label-right" id="active-label-a-right">MA-V</div>
+                        </div>
+
+                    </div>
+                    <div class="video-caption">Composition</div>
+                    </div>
+                </div>
+                <p class="caption">
+                    <strong>Comparison of SA-V and MA-V.</strong><br>
+                    Prior Video Matting datasets contain at most hundreds of videos, predominantly focusing on human subjects captured in controlled environments or through manual annotation. 
+                    They create artificial scene compositions that differ fundamentally from natural video footage, limiting model generalization to real world scenarios.
+                    We introduce Matte Anything in Videos (MA-V), created by applying VideoMaMa to annotate SA-V’s diverse mask annotations. 
+                    MA-V provides 50,541 videos captured in natural settings, nearly 50× larger than existing real-video datasets.
+                    Move slider left and right to compare between SA-V and MA-V. Click to pause and resume.
+                </p>
+                <button class="nav-floating-btn btn-right" onclick="navigateComparison(1)">&#10095;</button>
+            </section>
+            <div class="gallery-title-container">
+                <h2 class="section-title">Choose a video</h2>
+            </div>
+            <section class="gallery-section">
+                <div class="gallery-grid" id="gallery-grid">
+                </div>
+
+                <div class="pagination-controls">
+                    <button class="nav-btn" id="btn-prev" onclick="changePage(-1)">&#8249;</button>
+                    <span class="page-info" id="page-info">Page 1 / 8</span>
+                    <button class="nav-btn" id="btn-next" onclick="changePage(1)">&#8250;</button>
+                </div>
+            </section>
+        </div>
+    </div>
+</section>
+
+<!-- Qualitative Comparison Section - Now after SA-V vs MA-V -->
+<section class="section">
+    <div class="container">
+        <div class="paper-container">
+            <h2 class="section-title-header">Qualitative Comparison</h2>
+
+            <button class="nav-floating-btn btn-left" onclick="navigateNewLayout(-1)">&#10094;</button>
+            <div class="master-wrapper" id="master-layout-container">
+
+                <div class="global-mode-switch-container">
+                    <div class="mode-switch-button global-mode">
+                        <button type="button" id="nl-global-alpha" class="mode-btn active" onclick="switchGlobalMode('alpha')">Pred. Alpha</button>
+                        <button type="button" id="nl-global-comp" class="mode-btn" onclick="switchGlobalMode('comp')">Composition</button>
+                    </div>
+                </div>
+                
+                <div class="layout-section input-section">
+                    <div class="input-video-container twin-container">
+                        <div class="compare-section-title">Input</div>
+                        
+                        <div class="model-video-box input-box">
+                            <div class="bento-label-badge label-center" style = "bottom:6px">Input RGB</div>
+                            <video id="nl-input-rgb" class="content-vid" muted loop playsinline preload="metadata">
+                            </video>
+                        </div>
+                        
+                        <div class="model-video-box input-box mask-box">
+                            <div class="bento-label-badge label-center" style = "bottom:6px">Input Mask</div>
+                            <video id="nl-input-mask" class="content-vid" muted loop playsinline preload="metadata">
+                            </video>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="comparison-group-wrapper">
+
+                    <div class="layout-section comparison-section comp-1">
+                        <div class="compare-section-title">All-frame mask-guided </div>
+
+                        <div class="model-video-box">
+                            <div class="bento-label-badge label-center">MaGGIe</div>
+                            <video id="nl-model-1" class="content-vid" muted loop playsinline preload="metadata">
+                            </video>
+                        </div>
+
+                        <div class="model-video-box">
+                            <div class="bento-label-badge label-center">VideoMaMa (Ours)</div>
+                            <video id="nl-model-2" class="content-vid" muted loop playsinline preload="metadata">
+                                <source src="" type="video/mp4">
+                            </video>
+                        </div>
+                    </div>
+
+                    <div class="layout-section comparison-section comp-2">
+                        <div class="compare-section-title">First-frame mask-guided</div>
+
+                        <div class="model-video-box">
+                            <div class="bento-label-badge label-center">MatAnyone</div>
+                            <video id="nl-model-3" class="content-vid" muted loop playsinline preload="metadata">
+                            </video>
+                        </div>
+
+                        <div class="model-video-box">
+                            <div class="bento-label-badge label-center">SAM2-Matte (Ours)</div>
+                            <video id="nl-model-4" class="content-vid" muted loop playsinline preload="metadata">
+                            </video>
+                        </div>
+                    </div>
+
+                </div>
+            </div> 
+                
+            <p class="caption">
+                <strong>Qualitative comparison of VideoMaMa and SAM2-Matte with MaGGIe and MatAnyone on in-the-wild videos.</strong><br>
+                The input masks are generated using SAM2 by manually providing a point prompt on the first frame. Click to pause or resume.
+            </p>
+            <div style="height: 30px;"></div> 
+            <div class="gallery-title-container">
+                <h2 class="section-title">Choose a video</h2>
+            </div>
+            <section class="gallery-section">
+                <div class="gallery-grid" id="compare-gallery-grid">
+                </div>
+            </section>
+            <button class="nav-floating-btn btn-right" onclick="navigateNewLayout(1)">&#10095;</button>
+        </div>
+    </div>
+</section>
+
+<section class="section">
+    <div class="container">
+        <div class="paper-container">
+            <h2 class="section-title-header">VideoMaMa Architecture</h2>
+            <div style="text-align: center; margin-top: 20px;">
+                <img src="assets/videomama.png" alt="VideoMaMa Architecture" style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+            </div>
+            RGB frames and guide masks are processed through video diffusion U-Net layers to generate high-quality video mattes. Semantic injection with DINO features is applied during training.
+        </div>
+    </div>
+</section>
+
+<section class="section">
+    <div class="container">
+        <div class="paper-container">
+            <h2 class="section-title-header">Quantitative Results</h2>
+            <div style="text-align: center; margin-top: 20px;">
+                <img src="assets/videomama_quan.png" alt="VideoMaMa Quantitative" style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+            </div>
+            All-frame mask-guided video matting comparison on V-HIM60 and YouTubeMatte benchmarks. We compare VideoMaMa
+            (Ours) against mask-guided matting methods: MaGGIe (video mask-guided) and MGM (image mask-guided). We evaluate on
+            two mask types: Synthetically Degraded Masks including downsampling (8×, 32×) and polygonization with varying difficulty levels, and
+            Model-Generated Masks from SAM2. Lower values indicate better performance.
+        </div>
+    </div>
+</section>
+
+<section class="section">
+    <div class="container">
+        <div class="paper-container">
+            <h2 class="section-title-header">Citation</h2>
+            <p class="caption">If you use VideoMaMa in your work, please cite the paper as:</p>
+            <pre class="citation-bib">
+                @article{
+                }
+            </pre>
+        </div>
+    </div>
+</section>
+
+<!-- Footer (Optional) -->
+<footer style="background-color: #f5f5f5; padding: 2rem; text-align: center; color: #7a7a7a;">
+    <div class="container">
+        <p>&copy; 2025 VideoMaMa Project. All rights reserved.</p>
+    </div>
+</footer>
+
+<script>
+
+    const TEST_REF = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
+    const TEST_IN  = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4";
+    const TEST_OUT = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4";
+
+    const videoData = [
+        {
+            "id": 1,
+            "title": "# 1",
+            "ref": "mav_sav/0_sav_036684_manual_1_rgb.mp4",
+            "result1": "mav_sav/0_sav_036684_manual_1_mask.mp4",
+            "input1": "mav_sav/0_sav_036684_manual_1_pred_alpha.mp4",
+            "result2": "mav_sav/0_sav_036684_manual_1_mask_greenscreen.mp4",
+            "input2": "mav_sav/0_sav_036684_manual_1_pred_greenscreen.mp4"
+        },
+        {
+            "id": 2,
+            "title": "# 2",
+            "ref": "mav_sav/0_sav_037832_manual_0_rgb.mp4",
+            "result1": "mav_sav/0_sav_037832_manual_0_mask.mp4",
+            "input1": "mav_sav/0_sav_037832_manual_0_pred_alpha.mp4",
+            "result2": "mav_sav/0_sav_037832_manual_0_mask_greenscreen.mp4",
+            "input2": "mav_sav/0_sav_037832_manual_0_pred_greenscreen.mp4"
+        },
+        {
+            "id": 3,
+            "title": "# 3",
+            "ref": "mav_sav/0_sav_038251_manual_2_rgb.mp4",
+            "result1": "mav_sav/0_sav_038251_manual_2_mask.mp4",
+            "input1": "mav_sav/0_sav_038251_manual_2_pred_alpha.mp4",
+            "result2": "mav_sav/0_sav_038251_manual_2_mask_greenscreen.mp4",
+            "input2": "mav_sav/0_sav_038251_manual_2_pred_greenscreen.mp4"
+        },
+        {
+            "id": 4,
+            "title": "# 4",
+            "ref": "mav_sav/0_sav_040852_manual_0_rgb.mp4",
+            "result1": "mav_sav/0_sav_040852_manual_0_mask.mp4",
+            "input1": "mav_sav/0_sav_040852_manual_0_pred_alpha.mp4",
+            "result2": "mav_sav/0_sav_040852_manual_0_mask_greenscreen.mp4",
+            "input2": "mav_sav/0_sav_040852_manual_0_pred_greenscreen.mp4"
+        },
+        {
+            "id": 5,
+            "title": "# 5",
+            "ref": "mav_sav/0_sav_040974_manual_5_rgb.mp4",
+            "result1": "mav_sav/0_sav_040974_manual_5_mask.mp4",
+            "input1": "mav_sav/0_sav_040974_manual_5_pred_alpha.mp4",
+            "result2": "mav_sav/0_sav_040974_manual_5_mask_greenscreen.mp4",
+            "input2": "mav_sav/0_sav_040974_manual_5_pred_greenscreen.mp4"
+        },
+        {
+            "id": 6,
+            "title": "# 6",
+            "ref": "mav_sav/0_sav_042715_manual_0_rgb.mp4",
+            "result1": "mav_sav/0_sav_042715_manual_0_mask.mp4",
+            "input1": "mav_sav/0_sav_042715_manual_0_pred_alpha.mp4",
+            "result2": "mav_sav/0_sav_042715_manual_0_mask_greenscreen.mp4",
+            "input2": "mav_sav/0_sav_042715_manual_0_pred_greenscreen.mp4"
+        },
+        {
+            "id": 7,
+            "title": "# 7",
+            "ref": "mav_sav/0_sav_046702_manual_0_rgb.mp4",
+            "result1": "mav_sav/0_sav_046702_manual_0_mask.mp4",
+            "input1": "mav_sav/0_sav_046702_manual_0_pred_alpha.mp4",
+            "result2": "mav_sav/0_sav_046702_manual_0_mask_greenscreen.mp4",
+            "input2": "mav_sav/0_sav_046702_manual_0_pred_greenscreen.mp4"
+        },
+        {
+            "id": 8,
+            "title": "# 8",
+            "ref": "mav_sav/0_sav_047034_manual_1_rgb.mp4",
+            "result1": "mav_sav/0_sav_047034_manual_1_mask.mp4",
+            "input1": "mav_sav/0_sav_047034_manual_1_pred_alpha.mp4",
+            "result2": "mav_sav/0_sav_047034_manual_1_mask_greenscreen.mp4",
+            "input2": "mav_sav/0_sav_047034_manual_1_pred_greenscreen.mp4"
+        },
+        {
+            "id": 9,
+            "title": "# 9",
+            "ref": "mav_sav/0_sav_047229_manual_2_rgb.mp4",
+            "result1": "mav_sav/0_sav_047229_manual_2_mask.mp4",
+            "input1": "mav_sav/0_sav_047229_manual_2_pred_alpha.mp4",
+            "result2": "mav_sav/0_sav_047229_manual_2_mask_greenscreen.mp4",
+            "input2": "mav_sav/0_sav_047229_manual_2_pred_greenscreen.mp4"
+        },
+        {
+            "id": 10,
+            "title": "# 10",
+            "ref": "mav_sav/sav_036144_manual_0_rgb.mp4",
+            "result1": "mav_sav/sav_036144_manual_0_mask.mp4",
+            "input1": "mav_sav/sav_036144_manual_0_pred_alpha.mp4",
+            "result2": "mav_sav/sav_036144_manual_0_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_036144_manual_0_pred_greenscreen.mp4"
+        },
+        {
+            "id": 11,
+            "title": "# 11",
+            "ref": "mav_sav/sav_036646_manual_0_rgb.mp4",
+            "result1": "mav_sav/sav_036646_manual_0_mask.mp4",
+            "input1": "mav_sav/sav_036646_manual_0_pred_alpha.mp4",
+            "result2": "mav_sav/sav_036646_manual_0_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_036646_manual_0_pred_greenscreen.mp4"
+        },
+        {
+            "id": 12,
+            "title": "# 12",
+            "ref": "mav_sav/sav_036854_manual_0_rgb.mp4",
+            "result1": "mav_sav/sav_036854_manual_0_mask.mp4",
+            "input1": "mav_sav/sav_036854_manual_0_pred_alpha.mp4",
+            "result2": "mav_sav/sav_036854_manual_0_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_036854_manual_0_pred_greenscreen.mp4"
+        },
+        {
+            "id": 13,
+            "title": "# 13",
+            "ref": "mav_sav/sav_037303_manual_1_rgb.mp4",
+            "result1": "mav_sav/sav_037303_manual_1_mask.mp4",
+            "input1": "mav_sav/sav_037303_manual_1_pred_alpha.mp4",
+            "result2": "mav_sav/sav_037303_manual_1_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_037303_manual_1_pred_greenscreen.mp4"
+        },
+        {
+            "id": 14,
+            "title": "# 14",
+            "ref": "mav_sav/sav_037646_manual_0_rgb.mp4",
+            "result1": "mav_sav/sav_037646_manual_0_mask.mp4",
+            "input1": "mav_sav/sav_037646_manual_0_pred_alpha.mp4",
+            "result2": "mav_sav/sav_037646_manual_0_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_037646_manual_0_pred_greenscreen.mp4"
+        },
+        {
+            "id": 15,
+            "title": "# 15",
+            "ref": "mav_sav/sav_037892_manual_1_rgb.mp4",
+            "result1": "mav_sav/sav_037892_manual_1_mask.mp4",
+            "input1": "mav_sav/sav_037892_manual_1_pred_alpha.mp4",
+            "result2": "mav_sav/sav_037892_manual_1_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_037892_manual_1_pred_greenscreen.mp4"
+        },
+        {
+            "id": 16,
+            "title": "# 16",
+            "ref": "mav_sav/sav_037925_manual_0_rgb.mp4",
+            "result1": "mav_sav/sav_037925_manual_0_mask.mp4",
+            "input1": "mav_sav/sav_037925_manual_0_pred_alpha.mp4",
+            "result2": "mav_sav/sav_037925_manual_0_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_037925_manual_0_pred_greenscreen.mp4"
+        },
+        {
+            "id": 17,
+            "title": "# 17",
+            "ref": "mav_sav/sav_038109_manual_3_rgb.mp4",
+            "result1": "mav_sav/sav_038109_manual_3_mask.mp4",
+            "input1": "mav_sav/sav_038109_manual_3_pred_alpha.mp4",
+            "result2": "mav_sav/sav_038109_manual_3_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_038109_manual_3_pred_greenscreen.mp4"
+        },
+        {
+            "id": 18,
+            "title": "# 18",
+            "ref": "mav_sav/sav_038224_manual_0_rgb.mp4",
+            "result1": "mav_sav/sav_038224_manual_0_mask.mp4",
+            "input1": "mav_sav/sav_038224_manual_0_pred_alpha.mp4",
+            "result2": "mav_sav/sav_038224_manual_0_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_038224_manual_0_pred_greenscreen.mp4"
+        },
+        {
+            "id": 19,
+            "title": "# 19",
+            "ref": "mav_sav/sav_038251_manual_3_rgb.mp4",
+            "result1": "mav_sav/sav_038251_manual_3_mask.mp4",
+            "input1": "mav_sav/sav_038251_manual_3_pred_alpha.mp4",
+            "result2": "mav_sav/sav_038251_manual_3_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_038251_manual_3_pred_greenscreen.mp4"
+        },
+        {
+            "id": 20,
+            "title": "# 20",
+            "ref": "mav_sav/sav_038469_manual_3_rgb.mp4",
+            "result1": "mav_sav/sav_038469_manual_3_mask.mp4",
+            "input1": "mav_sav/sav_038469_manual_3_pred_alpha.mp4",
+            "result2": "mav_sav/sav_038469_manual_3_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_038469_manual_3_pred_greenscreen.mp4"
+        },
+        {
+            "id": 21,
+            "title": "# 21",
+            "ref": "mav_sav/sav_038994_manual_0_rgb.mp4",
+            "result1": "mav_sav/sav_038994_manual_0_mask.mp4",
+            "input1": "mav_sav/sav_038994_manual_0_pred_alpha.mp4",
+            "result2": "mav_sav/sav_038994_manual_0_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_038994_manual_0_pred_greenscreen.mp4"
+        },
+        {
+            "id": 22,
+            "title": "# 22",
+            "ref": "mav_sav/sav_039607_manual_0_rgb.mp4",
+            "result1": "mav_sav/sav_039607_manual_0_mask.mp4",
+            "input1": "mav_sav/sav_039607_manual_0_pred_alpha.mp4",
+            "result2": "mav_sav/sav_039607_manual_0_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_039607_manual_0_pred_greenscreen.mp4"
+        },
+        {
+            "id": 23,
+            "title": "# 23",
+            "ref": "mav_sav/sav_039607_manual_1_rgb.mp4",
+            "result1": "mav_sav/sav_039607_manual_1_mask.mp4",
+            "input1": "mav_sav/sav_039607_manual_1_pred_alpha.mp4",
+            "result2": "mav_sav/sav_039607_manual_1_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_039607_manual_1_pred_greenscreen.mp4"
+        },
+        {
+            "id": 24,
+            "title": "# 24",
+            "ref": "mav_sav/sav_039876_manual_0_rgb.mp4",
+            "result1": "mav_sav/sav_039876_manual_0_mask.mp4",
+            "input1": "mav_sav/sav_039876_manual_0_pred_alpha.mp4",
+            "result2": "mav_sav/sav_039876_manual_0_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_039876_manual_0_pred_greenscreen.mp4"
+        },
+        {
+            "id": 25,
+            "title": "# 25",
+            "ref": "mav_sav/sav_039898_manual_0_rgb.mp4",
+            "result1": "mav_sav/sav_039898_manual_0_mask.mp4",
+            "input1": "mav_sav/sav_039898_manual_0_pred_alpha.mp4",
+            "result2": "mav_sav/sav_039898_manual_0_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_039898_manual_0_pred_greenscreen.mp4"
+        },
+        {
+            "id": 26,
+            "title": "# 26",
+            "ref": "mav_sav/sav_040142_manual_0_rgb.mp4",
+            "result1": "mav_sav/sav_040142_manual_0_mask.mp4",
+            "input1": "mav_sav/sav_040142_manual_0_pred_alpha.mp4",
+            "result2": "mav_sav/sav_040142_manual_0_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_040142_manual_0_pred_greenscreen.mp4"
+        },
+        {
+            "id": 27,
+            "title": "# 27",
+            "ref": "mav_sav/sav_040506_manual_0_rgb.mp4",
+            "result1": "mav_sav/sav_040506_manual_0_mask.mp4",
+            "input1": "mav_sav/sav_040506_manual_0_pred_alpha.mp4",
+            "result2": "mav_sav/sav_040506_manual_0_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_040506_manual_0_pred_greenscreen.mp4"
+        },
+        {
+            "id": 28,
+            "title": "# 28",
+            "ref": "mav_sav/sav_040974_manual_4_rgb.mp4",
+            "result1": "mav_sav/sav_040974_manual_4_mask.mp4",
+            "input1": "mav_sav/sav_040974_manual_4_pred_alpha.mp4",
+            "result2": "mav_sav/sav_040974_manual_4_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_040974_manual_4_pred_greenscreen.mp4"
+        },
+        {
+            "id": 29,
+            "title": "# 29",
+            "ref": "mav_sav/sav_042054_manual_0_rgb.mp4",
+            "result1": "mav_sav/sav_042054_manual_0_mask.mp4",
+            "input1": "mav_sav/sav_042054_manual_0_pred_alpha.mp4",
+            "result2": "mav_sav/sav_042054_manual_0_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_042054_manual_0_pred_greenscreen.mp4"
+        },
+        {
+            "id": 30,
+            "title": "# 30",
+            "ref": "mav_sav/sav_042500_manual_1_rgb.mp4",
+            "result1": "mav_sav/sav_042500_manual_1_mask.mp4",
+            "input1": "mav_sav/sav_042500_manual_1_pred_alpha.mp4",
+            "result2": "mav_sav/sav_042500_manual_1_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_042500_manual_1_pred_greenscreen.mp4"
+        },
+        {
+            "id": 31,
+            "title": "# 31",
+            "ref": "mav_sav/sav_042551_manual_1_rgb.mp4",
+            "result1": "mav_sav/sav_042551_manual_1_mask.mp4",
+            "input1": "mav_sav/sav_042551_manual_1_pred_alpha.mp4",
+            "result2": "mav_sav/sav_042551_manual_1_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_042551_manual_1_pred_greenscreen.mp4"
+        },
+        {
+            "id": 32,
+            "title": "# 32",
+            "ref": "mav_sav/sav_042715_manual_1_rgb.mp4",
+            "result1": "mav_sav/sav_042715_manual_1_mask.mp4",
+            "input1": "mav_sav/sav_042715_manual_1_pred_alpha.mp4",
+            "result2": "mav_sav/sav_042715_manual_1_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_042715_manual_1_pred_greenscreen.mp4"
+        },
+        {
+            "id": 33,
+            "title": "# 33",
+            "ref": "mav_sav/sav_043360_manual_1_rgb.mp4",
+            "result1": "mav_sav/sav_043360_manual_1_mask.mp4",
+            "input1": "mav_sav/sav_043360_manual_1_pred_alpha.mp4",
+            "result2": "mav_sav/sav_043360_manual_1_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_043360_manual_1_pred_greenscreen.mp4"
+        },
+        {
+            "id": 34,
+            "title": "# 34",
+            "ref": "mav_sav/sav_043471_manual_1_rgb.mp4",
+            "result1": "mav_sav/sav_043471_manual_1_mask.mp4",
+            "input1": "mav_sav/sav_043471_manual_1_pred_alpha.mp4",
+            "result2": "mav_sav/sav_043471_manual_1_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_043471_manual_1_pred_greenscreen.mp4"
+        },
+        {
+            "id": 35,
+            "title": "# 35",
+            "ref": "mav_sav/sav_043471_manual_2_rgb.mp4",
+            "result1": "mav_sav/sav_043471_manual_2_mask.mp4",
+            "input1": "mav_sav/sav_043471_manual_2_pred_alpha.mp4",
+            "result2": "mav_sav/sav_043471_manual_2_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_043471_manual_2_pred_greenscreen.mp4"
+        },
+        {
+            "id": 36,
+            "title": "# 36",
+            "ref": "mav_sav/sav_043477_manual_0_rgb.mp4",
+            "result1": "mav_sav/sav_043477_manual_0_mask.mp4",
+            "input1": "mav_sav/sav_043477_manual_0_pred_alpha.mp4",
+            "result2": "mav_sav/sav_043477_manual_0_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_043477_manual_0_pred_greenscreen.mp4"
+        },
+        {
+            "id": 37,
+            "title": "# 37",
+            "ref": "mav_sav/sav_043523_manual_1_rgb.mp4",
+            "result1": "mav_sav/sav_043523_manual_1_mask.mp4",
+            "input1": "mav_sav/sav_043523_manual_1_pred_alpha.mp4",
+            "result2": "mav_sav/sav_043523_manual_1_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_043523_manual_1_pred_greenscreen.mp4"
+        },
+        {
+            "id": 38,
+            "title": "# 38",
+            "ref": "mav_sav/sav_044015_manual_1_rgb.mp4",
+            "result1": "mav_sav/sav_044015_manual_1_mask.mp4",
+            "input1": "mav_sav/sav_044015_manual_1_pred_alpha.mp4",
+            "result2": "mav_sav/sav_044015_manual_1_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_044015_manual_1_pred_greenscreen.mp4"
+        },
+        {
+            "id": 39,
+            "title": "# 39",
+            "ref": "mav_sav/sav_044725_manual_0_rgb.mp4",
+            "result1": "mav_sav/sav_044725_manual_0_mask.mp4",
+            "input1": "mav_sav/sav_044725_manual_0_pred_alpha.mp4",
+            "result2": "mav_sav/sav_044725_manual_0_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_044725_manual_0_pred_greenscreen.mp4"
+        },
+        {
+            "id": 40,
+            "title": "# 40",
+            "ref": "mav_sav/sav_044727_manual_2_rgb.mp4",
+            "result1": "mav_sav/sav_044727_manual_2_mask.mp4",
+            "input1": "mav_sav/sav_044727_manual_2_pred_alpha.mp4",
+            "result2": "mav_sav/sav_044727_manual_2_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_044727_manual_2_pred_greenscreen.mp4"
+        },
+        {
+            "id": 41,
+            "title": "# 41",
+            "ref": "mav_sav/sav_045102_manual_2_rgb.mp4",
+            "result1": "mav_sav/sav_045102_manual_2_mask.mp4",
+            "input1": "mav_sav/sav_045102_manual_2_pred_alpha.mp4",
+            "result2": "mav_sav/sav_045102_manual_2_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_045102_manual_2_pred_greenscreen.mp4"
+        },
+        {
+            "id": 42,
+            "title": "# 42",
+            "ref": "mav_sav/sav_045971_manual_2_rgb.mp4",
+            "result1": "mav_sav/sav_045971_manual_2_mask.mp4",
+            "input1": "mav_sav/sav_045971_manual_2_pred_alpha.mp4",
+            "result2": "mav_sav/sav_045971_manual_2_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_045971_manual_2_pred_greenscreen.mp4"
+        },
+        {
+            "id": 43,
+            "title": "# 43",
+            "ref": "mav_sav/sav_045980_manual_1_rgb.mp4",
+            "result1": "mav_sav/sav_045980_manual_1_mask.mp4",
+            "input1": "mav_sav/sav_045980_manual_1_pred_alpha.mp4",
+            "result2": "mav_sav/sav_045980_manual_1_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_045980_manual_1_pred_greenscreen.mp4"
+        },
+        {
+            "id": 44,
+            "title": "# 44",
+            "ref": "mav_sav/sav_046013_manual_4_rgb.mp4",
+            "result1": "mav_sav/sav_046013_manual_4_mask.mp4",
+            "input1": "mav_sav/sav_046013_manual_4_pred_alpha.mp4",
+            "result2": "mav_sav/sav_046013_manual_4_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_046013_manual_4_pred_greenscreen.mp4"
+        },
+        {
+            "id": 45,
+            "title": "# 45",
+            "ref": "mav_sav/sav_046013_manual_5_rgb.mp4",
+            "result1": "mav_sav/sav_046013_manual_5_mask.mp4",
+            "input1": "mav_sav/sav_046013_manual_5_pred_alpha.mp4",
+            "result2": "mav_sav/sav_046013_manual_5_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_046013_manual_5_pred_greenscreen.mp4"
+        },
+        {
+            "id": 46,
+            "title": "# 46",
+            "ref": "mav_sav/sav_046104_manual_3_rgb.mp4",
+            "result1": "mav_sav/sav_046104_manual_3_mask.mp4",
+            "input1": "mav_sav/sav_046104_manual_3_pred_alpha.mp4",
+            "result2": "mav_sav/sav_046104_manual_3_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_046104_manual_3_pred_greenscreen.mp4"
+        },
+        {
+            "id": 47,
+            "title": "# 47",
+            "ref": "mav_sav/sav_046893_manual_1_rgb.mp4",
+            "result1": "mav_sav/sav_046893_manual_1_mask.mp4",
+            "input1": "mav_sav/sav_046893_manual_1_pred_alpha.mp4",
+            "result2": "mav_sav/sav_046893_manual_1_mask_greenscreen.mp4",
+            "input2": "mav_sav/sav_046893_manual_1_pred_greenscreen.mp4"
+        }
+    ];
+
+    const bentoData = [
+        {
+            "id": 1,
+            "title": "# 1",
+            "topLeft": "videomama/0_cheerleader_rgb.mp4",
+            "botLeft": "videomama/0_cheerleader_mask.mp4",
+            "main_alpha": "videomama/0_cheerleader_pred_alpha.mp4",
+            "main_comp": "videomama/0_cheerleader_pred_greenscreen.mp4",
+            "current_view": "alpha"
+        },
+        {
+            "id": 2,
+            "title": "# 2",
+            "topLeft": "videomama/0_ad1aa270_rgb.mp4",
+            "botLeft": "videomama/0_ad1aa270_mask.mp4",
+            "main_alpha": "videomama/0_ad1aa270_pred_alpha.mp4",
+            "main_comp": "videomama/0_ad1aa270_pred_greenscreen.mp4",
+            "current_view": "alpha"
+        },
+        {
+            "id": 3,
+            "title": "# 3",
+            "topLeft": "videomama/0_8cfc2be8_rgb.mp4",
+            "botLeft": "videomama/0_8cfc2be8_mask.mp4",
+            "main_alpha": "videomama/0_8cfc2be8_pred_alpha.mp4",
+            "main_comp": "videomama/0_8cfc2be8_pred_greenscreen.mp4",
+            "current_view": "alpha"
+        },
+        {
+            "id": 4,
+            "title": "# 4",
+            "topLeft": "videomama/019020_rgb.mp4",
+            "botLeft": "videomama/019020_mask.mp4",
+            "main_alpha": "videomama/019020_pred_alpha.mp4",
+            "main_comp": "videomama/019020_pred_greenscreen.mp4",
+            "current_view": "alpha"
+        },
+        {
+            "id": 5,
+            "title": "# 5",
+            "topLeft": "videomama/019031_rgb.mp4",
+            "botLeft": "videomama/019031_mask.mp4",
+            "main_alpha": "videomama/019031_pred_alpha.mp4",
+            "main_comp": "videomama/019031_pred_greenscreen.mp4",
+            "current_view": "alpha"
+        },
+        {
+            "id": 6,
+            "title": "# 6",
+            "topLeft": "videomama/0_41c11e7f_rgb.mp4",
+            "botLeft": "videomama/0_41c11e7f_mask.mp4",
+            "main_alpha": "videomama/0_41c11e7f_pred_alpha.mp4",
+            "main_comp": "videomama/0_41c11e7f_pred_greenscreen.mp4",
+            "current_view": "alpha"
+        },
+        {
+            "id": 7,
+            "title": "# 7",
+            "topLeft": "videomama/0_994ca115_rgb.mp4",
+            "botLeft": "videomama/0_994ca115_mask.mp4",
+            "main_alpha": "videomama/0_994ca115_pred_alpha.mp4",
+            "main_comp": "videomama/0_994ca115_pred_greenscreen.mp4",
+            "current_view": "alpha"
+        },
+        {
+            "id": 8,
+            "title": "# 8",
+            "topLeft": "videomama/0_de7bf782_rgb.mp4",
+            "botLeft": "videomama/0_de7bf782_mask.mp4",
+            "main_alpha": "videomama/0_de7bf782_pred_alpha.mp4",
+            "main_comp": "videomama/0_de7bf782_pred_greenscreen.mp4",
+            "current_view": "alpha"
+        },
+        {
+            "id": 9,
+            "title": "# 9",
+            "topLeft": "videomama/0_f12ccf3f_rgb.mp4",
+            "botLeft": "videomama/0_f12ccf3f_mask.mp4",
+            "main_alpha": "videomama/0_f12ccf3f_pred_alpha.mp4",
+            "main_comp": "videomama/0_f12ccf3f_pred_greenscreen.mp4",
+            "current_view": "alpha"
+        },
+        {
+            "id": 10,
+            "title": "# 10",
+            "topLeft": "videomama/0_karina_3_rgb.mp4",
+            "botLeft": "videomama/0_karina_3_mask.mp4",
+            "main_alpha": "videomama/0_karina_3_pred_alpha.mp4",
+            "main_comp": "videomama/0_karina_3_pred_greenscreen.mp4",
+            "current_view": "alpha"
+        },
+        {
+            "id": 11,
+            "title": "# 11",
+            "topLeft": "videomama/387dc903_rgb.mp4",
+            "botLeft": "videomama/387dc903_mask.mp4",
+            "main_alpha": "videomama/387dc903_pred_alpha.mp4",
+            "main_comp": "videomama/387dc903_pred_greenscreen.mp4",
+            "current_view": "alpha"
+        },
+        {
+            "id": 12,
+            "title": "# 12",
+            "topLeft": "videomama/4dc4f8ae_rgb.mp4",
+            "botLeft": "videomama/4dc4f8ae_mask.mp4",
+            "main_alpha": "videomama/4dc4f8ae_pred_alpha.mp4",
+            "main_comp": "videomama/4dc4f8ae_pred_greenscreen.mp4",
+            "current_view": "alpha"
+        },
+        {
+            "id": 13,
+            "title": "# 13",
+            "topLeft": "videomama/5d426018_rgb.mp4",
+            "botLeft": "videomama/5d426018_mask.mp4",
+            "main_alpha": "videomama/5d426018_pred_alpha.mp4",
+            "main_comp": "videomama/5d426018_pred_greenscreen.mp4",
+            "current_view": "alpha"
+        },
+        {
+            "id": 14,
+            "title": "# 14",
+            "topLeft": "videomama/6be7a0ff_rgb.mp4",
+            "botLeft": "videomama/6be7a0ff_mask.mp4",
+            "main_alpha": "videomama/6be7a0ff_pred_alpha.mp4",
+            "main_comp": "videomama/6be7a0ff_pred_greenscreen.mp4",
+            "current_view": "alpha"
+        },
+        {
+            "id": 15,
+            "title": "# 15",
+            "topLeft": "videomama/738d5a70_rgb.mp4",
+            "botLeft": "videomama/738d5a70_mask.mp4",
+            "main_alpha": "videomama/738d5a70_pred_alpha.mp4",
+            "main_comp": "videomama/738d5a70_pred_greenscreen.mp4",
+            "current_view": "alpha"
+        },
+        {
+            "id": 16,
+            "title": "# 16",
+            "topLeft": "videomama/87ac746d_rgb.mp4",
+            "botLeft": "videomama/87ac746d_mask.mp4",
+            "main_alpha": "videomama/87ac746d_pred_alpha.mp4",
+            "main_comp": "videomama/87ac746d_pred_greenscreen.mp4",
+            "current_view": "alpha"
+        },
+        {
+            "id": 17,
+            "title": "# 17",
+            "topLeft": "videomama/965299f9_rgb.mp4",
+            "botLeft": "videomama/965299f9_mask.mp4",
+            "main_alpha": "videomama/965299f9_pred_alpha.mp4",
+            "main_comp": "videomama/965299f9_pred_greenscreen.mp4",
+            "current_view": "alpha"
+        },
+        {
+            "id": 18,
+            "title": "# 18",
+            "topLeft": "videomama/a878ef19_rgb.mp4",
+            "botLeft": "videomama/a878ef19_mask.mp4",
+            "main_alpha": "videomama/a878ef19_pred_alpha.mp4",
+            "main_comp": "videomama/a878ef19_pred_greenscreen.mp4",
+            "current_view": "alpha"
+        },
+        {
+            "id": 19,
+            "title": "# 19",
+            "topLeft": "videomama/d65b1313_rgb.mp4",
+            "botLeft": "videomama/d65b1313_mask.mp4",
+            "main_alpha": "videomama/d65b1313_pred_alpha.mp4",
+            "main_comp": "videomama/d65b1313_pred_greenscreen.mp4",
+            "current_view": "alpha"
+        },
+        {
+            "id": 20,
+            "title": "# 20",
+            "topLeft": "videomama/f2473ff4_rgb.mp4",
+            "botLeft": "videomama/f2473ff4_mask.mp4",
+            "main_alpha": "videomama/f2473ff4_pred_alpha.mp4",
+            "main_comp": "videomama/f2473ff4_pred_greenscreen.mp4",
+            "current_view": "alpha"
+        },
+        {
+            "id": 21,
+            "title": "# 21",
+            "topLeft": "videomama/karina_1_rgb.mp4",
+            "botLeft": "videomama/karina_1_mask.mp4",
+            "main_alpha": "videomama/karina_1_pred_alpha.mp4",
+            "main_comp": "videomama/karina_1_pred_greenscreen.mp4",
+            "current_view": "alpha"
+        },
+        {
+            "id": 22,
+            "title": "# 22",
+            "topLeft": "videomama/karina_2_rgb.mp4",
+            "botLeft": "videomama/karina_2_mask.mp4",
+            "main_alpha": "videomama/karina_2_pred_alpha.mp4",
+            "main_comp": "videomama/karina_2_pred_greenscreen.mp4",
+            "current_view": "alpha"
+        },
+        {
+            "id": 23,
+            "title": "# 23",
+            "topLeft": "videomama/videoplayback_3_rgb.mp4",
+            "botLeft": "videomama/videoplayback_3_mask.mp4",
+            "main_alpha": "videomama/videoplayback_3_pred_alpha.mp4",
+            "main_comp": "videomama/videoplayback_3_pred_greenscreen.mp4",
+            "current_view": "alpha"
+        },
+        {
+            "id": 24,
+            "title": "# 24",
+            "topLeft": "videomama/019006_rgb.mp4",
+            "botLeft": "videomama/019006_mask.mp4",
+            "main_alpha": "videomama/019006_pred_alpha.mp4",
+            "main_comp": "videomama/019006_pred_greenscreen.mp4",
+            "current_view": "alpha"
+        }
+    ];
+
+    const newLayoutData = [
+        {
+            "input_rgb": "comparison/ed4e023a_rgb.mp4",
+            "input_mask": "comparison/ed4e023a_mask.mp4",
+            "models": [
+                { "alpha": "comparison/MaGGIe/ed4e023a_pred_alpha.mp4", "comp": "comparison/MaGGIe/ed4e023a_pred_greenscreen.mp4" },
+                { "alpha": "comparison/videomama/ed4e023a_pred_alpha.mp4", "comp": "comparison/videomama/ed4e023a_pred_greenscreen.mp4" },
+                { "alpha": "comparison/MatAnyone/ed4e023a_pred_alpha.mp4", "comp": "comparison/MatAnyone/ed4e023a_pred_greenscreen.mp4" },
+                { "alpha": "comparison/mav_mask/ed4e023a_pred_alpha.mp4", "comp": "comparison/mav_mask/ed4e023a_pred_greenscreen.mp4" }
+            ]
+        },
+        {
+            "input_rgb": "comparison/karina_rgb.mp4",
+            "input_mask": "comparison/karina_mask.mp4",
+            "models": [
+                { "alpha": "comparison/MaGGIe/karina_pred_alpha.mp4", "comp": "comparison/MaGGIe/karina_pred_greenscreen.mp4" },
+                { "alpha": "comparison/videomama/karina_pred_alpha.mp4", "comp": "comparison/videomama/karina_pred_greenscreen.mp4" },
+                { "alpha": "comparison/MatAnyone/karina_pred_alpha.mp4", "comp": "comparison/MatAnyone/karina_pred_greenscreen.mp4" },
+                { "alpha": "comparison/mav_mask/karina_pred_alpha.mp4", "comp": "comparison/mav_mask/karina_pred_greenscreen.mp4" }
+            ]
+        },
+        {
+            "input_rgb": "comparison/basket_rgb.mp4",
+            "input_mask": "comparison/basket_mask.mp4",
+            "models": [
+                { "alpha": "comparison/MaGGIe/basket_pred_alpha.mp4", "comp": "comparison/MaGGIe/basket_pred_greenscreen.mp4" },
+                { "alpha": "comparison/videomama/basket_pred_alpha.mp4", "comp": "comparison/videomama/basket_pred_greenscreen.mp4" },
+                { "alpha": "comparison/MatAnyone/basket_pred_alpha.mp4", "comp": "comparison/MatAnyone/basket_pred_greenscreen.mp4" },
+                { "alpha": "comparison/mav_mask/basket_pred_alpha.mp4", "comp": "comparison/mav_mask/basket_pred_greenscreen.mp4" }
+            ]
+        }
+    ];
+
+
+    const ITEMS_PER_PAGE = 12;
+    let currentPage = 0;
+    let currentVideoIndex = 0;
+    let currentSliderPercent = 50; 
+    let bentoCurrentView = 'alpha'; 
+    let newLayoutIndex = 0; 
+    let currentGlobalMode = 'alpha';
+
+    const galleryGrid = document.getElementById('gallery-grid');
+    const pageInfo = document.getElementById('page-info');
+    const btnPrev = document.getElementById('btn-prev');
+    const btnNext = document.getElementById('btn-next');
+
+    
+    function focusVideo() {
+            const wrapper = document.getElementById('youtube-wrapper');
+            if (!wrapper) return;
+
+            // Calculate position to center the video vertically in the viewport
+            const rect = wrapper.getBoundingClientRect();
+            const absoluteTop = rect.top + window.scrollY;
+            const centerPosition = absoluteTop - (window.innerHeight / 2) + (rect.height / 2);
+
+            // Scroll smoothly to that position
+            window.scrollTo({
+                top: centerPosition,
+                behavior: 'smooth'
+            });
+        }
+
+
+    function syncAllVideos() {
+        const allVideos = document.querySelectorAll('.compare-row video');
+        
+        if (allVideos.length === 0) return;
+
+        const master = allVideos[0]; 
+        const slaves = Array.from(allVideos).slice(1); 
+
+        slaves.forEach(slave => {
+            slave.muted = true; 
+            slave.loop = false; 
+            
+            if (!master.paused && slave.readyState >= 2) {
+                slave.currentTime = master.currentTime;
+                slave.play().catch(()=>{});
+            }
+        });
+
+
+        master.onplay = () => {
+            slaves.forEach(v => {
+                v.currentTime = master.currentTime;
+                v.play().catch(()=>{});
+            });
+        };
+
+        master.onpause = () => {
+            slaves.forEach(v => v.pause());
+        };
+
+        master.onseeking = () => {
+            slaves.forEach(v => v.currentTime = master.currentTime);
+        };
+
+        master.ontimeupdate = () => {
+            if (master.paused) return;
+            slaves.forEach(v => {
+                const diff = Math.abs(v.currentTime - master.currentTime);
+                if (diff > 0.05) {
+                    v.currentTime = master.currentTime;
+                }
+            });
+        };
+
+        master.onended = () => {
+            if (master.loop) {
+                master.currentTime = 0;
+                master.play().catch(()=>{});
+                slaves.forEach(v => {
+                    v.currentTime = 0;
+                    v.play().catch(()=>{});
+                });
+            }
+        };
+    }
+
+
+    function loadVideoSet(index) {
+        currentVideoIndex = index;
+        const data = videoData[index];
+        
+        const refContainer = document.querySelector('.video-container:not(.with-slider)');
+        if(refContainer) {
+            const refVideo = refContainer.querySelector('video');
+            if(refVideo) {
+                refVideo.src = data.ref;
+                refVideo.load();
+            }
+            refContainer.onclick = toggleMasterPlayback;
+            refContainer.style.cursor = 'pointer';
+        }
+
+        const sliderContainers = document.querySelectorAll('.video-container.with-slider');
+        if(sliderContainers[0]) {
+            const vb = sliderContainers[0].querySelector('.video-back');
+            const vf = sliderContainers[0].querySelector('.video-front');
+            vb.src = data.input1; vb.load();
+            vf.src = data.result1; vf.load();
+        }
+        if(sliderContainers[1]) {
+            const vb = sliderContainers[1].querySelector('.video-back');
+            const vf = sliderContainers[1].querySelector('.video-front');
+            vb.src = data.input2; vb.load();
+            vf.src = data.result2; vf.load();
+        }
+
+        syncAllVideos();
+
+        const allVideos = document.querySelectorAll('.compare-row video');
+        let loadedCount = 0;
+        let errorCount = 0;
+
+        const checkAllLoaded = () => {
+            if (loadedCount + errorCount >= allVideos.length) {
+                document.querySelectorAll('.video-container.with-slider').forEach(c => updateContainerLayout(c));
+                syncSliderPositions();
+                
+                if(allVideos[0]) allVideos[0].play().catch(e => console.log("Auto-play:", e));
+            }
+        };
+
+        allVideos.forEach(video => {
+            video.playbackRate = 1.5; // Set playback speed
+            if (video.readyState >= 3) {
+                loadedCount++;
+                checkAllLoaded();
+            } else {
+                video.onloadeddata = () => { loadedCount++; checkAllLoaded(); };
+                video.onerror = () => { errorCount++; checkAllLoaded(); };
+            }
+        });
+
+        renderGallery();
+    }
+
+    function loadBentoSet(idx) {
+        bentoIndex = idx;
+            const data = bentoData[idx];
+            
+            const vTL = document.getElementById('b-top-left'); 
+            const vBL = document.getElementById('b-bot-left'); 
+            const vMain = document.getElementById('b-main');
+            
+            if(vTL) {
+                setBentoThumbnail(vTL); 
+                vTL.src = data.topLeft + '#t=0.01'; 
+            }
+            if(vBL) {
+                setBentoThumbnail(vBL); 
+                vBL.src = data.botLeft + '#t=0.01'; 
+            }
+            
+            if(vMain) {
+                if (data.current_view === 'alpha') {
+                    vMain.src = data.main_alpha + '#t=0.01';
+                } else {
+                    vMain.src = data.main_comp + '#t=0.01';
+                }
+            }
+        
+        
+        const vs = [vTL, vBL, vMain].filter(v => v); 
+        let cnt = 0;
+        
+        vs.forEach(v => {
+            v.load();
+            v.muted = true;
+            v.playbackRate = 1.5; // Set playback speed for new videos
+            const check = () => {
+                cnt++; 
+                if(cnt === vs.length) {
+                    syncBentoVideos(vMain, [vTL, vBL]);
+                    
+                    // Detect aspect ratio and update wrapper class
+                    adjustBentoWrapperSize(vMain);
+                    
+                    vs.forEach(x => { x.currentTime = 0; x.play().catch(()=>{}); });
+                }
+            };
+            v.onloadeddata = check; v.onerror = check;
+        });
+        
+        updateBentoSwitchButtons(data.current_view);
+        renderBentoGallery();
+    }
+
+    
+    function loadNewLayoutSet(idx) {
+        newLayoutIndex = idx; 
+        const data = newLayoutData[idx];
+        if (!data) return;
+
+        
+        const vRGB = document.getElementById('nl-input-rgb');
+        const vMask = document.getElementById('nl-input-mask');
+        const vModels = [
+            document.getElementById('nl-model-1'),
+            document.getElementById('nl-model-2'),
+            document.getElementById('nl-model-3'),
+            document.getElementById('nl-model-4')
+        ];
+
+        
+        if (vRGB) vRGB.src = data.input_rgb + '#t=0.01';
+        if (vMask) vMask.src = data.input_mask + '#t=0.01';
+        
+        vModels.forEach((v, i) => {
+            const modelData = data.models[i];
+            if (v && modelData) {
+                v.src = modelData[currentGlobalMode] + '#t=0.01';
+            }
+        });
+
+        
+        const vs = [vRGB, vMask, ...vModels].filter(v => v);
+        let cnt = 0;
+
+        
+        vs.forEach(v => {
+            
+            v.onloadeddata = null; 
+            v.onerror = null;
+            v.onclick = null;
+
+            v.load();
+            v.muted = true; 
+
+            const check = () => {
+                cnt++;
+                
+                if (cnt === vs.length) {
+                    
+                    const slaves = vs.filter(x => x !== vRGB);
+                    
+                    
+                    syncNewLayoutVideos(vRGB, slaves);
+
+                    
+                    vs.forEach(x => { 
+                        x.currentTime = 0; 
+                        x.play().catch(() => {}); 
+                    });
+                }
+            };
+            
+            v.onloadeddata = check;
+            v.onerror = check;
+        });
+
+        
+        updateGlobalSwitchUI(currentGlobalMode);
+        if (typeof renderCompareGallery === 'function') renderCompareGallery();
+    }
+    function syncNewLayoutVideos(m, s) {
+        
+        s.forEach(x => { x.muted = true; x.loop = true; });
+        m.loop = true; 
+
+        
+        m.onplay = () => s.forEach(x => { x.currentTime = m.currentTime; x.play().catch(() => {}); });
+        m.onpause = () => s.forEach(x => x.pause());
+        m.onseeking = () => s.forEach(x => x.currentTime = m.currentTime);
+        
+        
+        m.ontimeupdate = () => {
+            if (m.paused) return;
+            s.forEach(x => {
+                if (Math.abs(x.currentTime - m.currentTime) > 0.05) x.currentTime = m.currentTime;
+            });
+        };
+        
+        
+        m.onended = () => {
+            if (m.loop) {
+                m.currentTime = 0;
+                m.play();
+                s.forEach(x => { x.currentTime = 0; x.play(); });
+            }
+        };
+
+        
+        const allVideos = [m, ...s];
+        allVideos.forEach(v => {
+            v.style.cursor = 'pointer'; 
+            v.onclick = () => {
+                if (m.paused) {
+                    m.play(); 
+                } else {
+                    m.pause(); 
+                }
+            };
+        });
+    }
+    function switchModelMode(type, modelNum) { 
+        const data = newLayoutData[newLayoutIndex];
+        if (!data) return;
+
+        const modelData = data.models[modelNum - 1];
+        if (!modelData) return;
+
+        const video = document.getElementById(`nl-model-${modelNum}`);
+        const alphaBtn = document.getElementById(`nl-model${modelNum}-alpha`);
+        const compBtn = document.getElementById(`nl-model${modelNum}-comp`);
+
+        if (!video) return;
+
+        
+        if (type === 'alpha') {
+            video.querySelector('source').src = modelData.alpha;
+            alphaBtn.classList.add('active');
+            compBtn.classList.remove('active');
+        } else { 
+            video.querySelector('source').src = modelData.comp;
+            alphaBtn.classList.remove('active');
+            compBtn.classList.add('active');
+        }
+
+        video.load();
+        video.play();
+    }
+
+    
+    function syncAndPlayAll() {
+        const videos = document.querySelectorAll('#master-layout-container video');
+        if (videos.length === 0) return;
+
+        
+        const referenceVideo = document.getElementById('nl-input-rgb');
+        const targetTime = referenceVideo.currentTime; 
+        
+        
+        const shouldPlay = !referenceVideo.paused;
+
+        videos.forEach(video => {
+            
+            if (Math.abs(video.currentTime - targetTime) > 0.1) {
+                video.currentTime = targetTime; 
+            }
+            
+            
+            if (shouldPlay) {
+                video.play().catch(error => {
+                    console.error("Video playback failed for:", video.id, error);
+                });
+            } else {
+                video.pause();
+            }
+        });
+        
+        
+        renderCompareGallery(); 
+    }
+
+    
+
+    function renderCompareGallery() {
+        const galleryGrid = document.getElementById('compare-gallery-grid');
+        if (!galleryGrid) return;
+
+        galleryGrid.innerHTML = '';
+
+        
+        newLayoutData.forEach((item, index) => {
+            const div = document.createElement('div');
+            
+            
+            div.className = `gallery-item ${index === newLayoutIndex ? 'active' : ''}`;
+            
+            
+            div.onclick = () => {
+                newLayoutIndex = index;
+                loadNewLayoutSet(index);
+                renderCompareGallery(); 
+            };
+
+            
+            const thumbSrc = item.thumbnail || item.input_rgb;
+
+            div.innerHTML = `
+                <div style="position:relative; width:100%; aspect-ratio:16/9; pointer-events:none;">
+                    <video class="gallery-thumb" src="${thumbSrc}#t=0.01" muted preload="metadata" 
+                        style="width:100%; height:100%; object-fit:cover;"
+                        onloadeddata="this.currentTime=0.01"></video>
+                </div>
+                <div class="gallery-label">Sample ${index + 1}</div>
+            `;
+            
+            galleryGrid.appendChild(div);
+
+            
+            const v = div.querySelector('.gallery-thumb');
+            if (v) {
+                
+                if (!thumbSrc.match(/\.(jpg|jpeg|png)$/i)) {
+                    v.addEventListener('loadeddata', function handler() {
+                        this.removeEventListener('loadeddata', handler);
+                        setTimeout(() => {
+                            try {
+                                const c = document.createElement('canvas');
+                                c.width = this.videoWidth;
+                                c.height = this.videoHeight;
+                                this.currentTime = 0.02;
+                                c.getContext('2d').drawImage(this, 0, 0, c.width, c.height);
+                                
+                                const i = document.createElement('img');
+                                i.src = c.toDataURL('image/jpeg');
+                                i.className = 'gallery-thumb';
+                                
+                                if (this.parentNode) this.parentNode.replaceChild(i, this);
+                            } catch(e) {}
+                        }, 100);
+                    });
+                    
+                } else {
+                    
+                    const img = document.createElement('img');
+                    img.src = thumbSrc;
+                    img.className = 'gallery-thumb';
+                    img.style.width = '100%';
+                    img.style.height = '100%';
+                    img.style.objectFit = 'cover';
+                    v.parentNode.replaceChild(img, v);
+                }
+            }
+        });
+    }
+    
+    function selectCompareItem(idx) {
+        if (idx < 0 || idx >= newLayoutData.length) return;
+        loadNewLayoutSet(idx); 
+        renderCompareGallery(); 
+    }
+
+    
+    function switchGlobalMode(type) {
+        if (currentGlobalMode === type) return;
+
+        
+        const m = document.getElementById('nl-input-rgb');
+        const savedTime = m ? m.currentTime : 0;
+        const wasPlaying = m ? !m.paused : true;
+
+        
+        if (m) m.pause();
+
+        currentGlobalMode = type;
+        const data = newLayoutData[newLayoutIndex];
+        if (!data) return;
+
+        
+        const vModels = [
+            document.getElementById('nl-model-1'),
+            document.getElementById('nl-model-2'),
+            document.getElementById('nl-model-3'),
+            document.getElementById('nl-model-4')
+        ].filter(v => v);
+
+        let readyCnt = 0;
+        const total = vModels.length;
+
+        
+        vModels.forEach((v, i) => {
+            const modelData = data.models[i];
+            
+            
+            const onReady = () => {
+                
+                v.removeEventListener('loadeddata', onReady);
+                v.removeEventListener('error', onReady);
+
+                readyCnt++;
+                
+                
+                if (readyCnt === total) {
+                    
+                    updateGlobalSwitchUI(currentGlobalMode);
+
+                    
+                    
+                    setTimeout(() => {
+                        if (m) {
+                            
+                            m.currentTime = savedTime; 
+                            
+                            if (wasPlaying) {
+                                m.play().catch(() => {});
+                            }
+                        }
+                    }, 100);
+                }
+            };
+
+            if (v && modelData) {
+                
+                v.addEventListener('loadeddata', onReady);
+                v.addEventListener('error', onReady);
+
+                
+                v.src = modelData[currentGlobalMode] + `#t=${savedTime}`;
+                v.load();
+            }
+        });
+    }
+    
+    function updateGlobalSwitchUI(mode) {
+        const alphaBtn = document.getElementById('nl-global-alpha');
+        const compBtn = document.getElementById('nl-global-comp');
+        
+        if (alphaBtn && compBtn) {
+            if (mode === 'alpha') {
+                alphaBtn.classList.add('active');
+                compBtn.classList.remove('active');
+            } else {
+                alphaBtn.classList.remove('active');
+                compBtn.classList.add('active');
+            }
+        }
+    }
+
+    
+    function navigateNewLayout(direction) {
+        let newIndex = newLayoutIndex + direction;
+        const totalSamples = newLayoutData.length;
+        
+        if (newIndex < 0) newIndex = totalSamples - 1;
+        if (newIndex >= totalSamples) newIndex = 0;
+        
+        selectCompareItem(newIndex); 
+    }
+    
+    function updateContainerLayout(container) {
+        const videoFront = container.querySelector('.video-front');
+        const sliderUI = container.querySelector('.slider-ui');
+        if (!videoFront || !sliderUI) return;
+        const vidW = videoFront.videoWidth;
+        const vidH = videoFront.videoHeight;
+        if (!vidW || !vidH) return;
+        const conRect = container.getBoundingClientRect();
+        const vidRatio = vidW / vidH;
+        const conRatio = conRect.width / conRect.height;
+        let renderW, renderH, offsetX, offsetY;
+        if (conRatio > vidRatio) {
+            renderH = conRect.height; renderW = renderH * vidRatio;
+            offsetY = 0; offsetX = (conRect.width - renderW) / 2;
+        } else {
+            renderW = conRect.width; renderH = renderW / vidRatio;
+            offsetX = 0; offsetY = (conRect.height - renderH) / 2;
+        }
+        sliderUI.style.width = `${renderW}px`; sliderUI.style.height = `${renderH}px`;
+        sliderUI.style.left = `${offsetX}px`; sliderUI.style.top = `${offsetY}px`;
+    }
+
+    function syncSliderPositions() {
+        const sliderContainers = document.querySelectorAll('.video-container.with-slider');
+        const HIDE_THRESHOLD_LEFT = 25; 
+    const HIDE_THRESHOLD_RIGHT = 75; 
+        sliderContainers.forEach(container => {
+            const sliderUI = container.querySelector('.slider-ui');
+            const line = container.querySelector('.slider-line');
+            const handle = container.querySelector('.slider-handle');
+            const videoFront = container.querySelector('.video-front');
+            if(line) line.style.left = `${currentSliderPercent}%`;
+            if(handle) handle.style.left = `${currentSliderPercent}%`;
+            if(sliderUI && videoFront) {
+                const uiRect = sliderUI.getBoundingClientRect();
+                const conRect = container.getBoundingClientRect();
+                const sliderX = uiRect.left + (uiRect.width * (currentSliderPercent / 100));
+                const offsetInContainer = sliderX - conRect.left;
+                const globalPercent = (offsetInContainer / conRect.width) * 100;
+                videoFront.style.clipPath = `inset(0 ${100 - globalPercent}% 0 0)`;
+            }
+            const activeLabels = container.querySelector('.slider-active-labels');
+            if (activeLabels) {
+                const labelLeft = activeLabels.querySelector('.label-left');
+                const labelRight = activeLabels.querySelector('.label-right');
+                
+                if (labelLeft) {
+                    if (currentSliderPercent <= HIDE_THRESHOLD_LEFT) {
+                        labelLeft.classList.add('hidden');
+                    } else {
+                        labelLeft.classList.remove('hidden');
+                    }
+                }
+
+                if (labelRight) {
+                    if (currentSliderPercent >= HIDE_THRESHOLD_RIGHT) {
+                        labelRight.classList.add('hidden');
+                    } else {
+                        labelRight.classList.remove('hidden');
+                    }
+                }
+            }
+        });
+    }
+
+
+    function toggleSliderLabels(containerId, isActive) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        
+        const videoContainer = container.querySelector('.video-container');
+        
+        if (isActive) {
+            videoContainer.classList.add('slider-active');
+        } else {
+
+            videoContainer.classList.remove('slider-active');
+        }
+    }
+
+
+    function initSyncedSliders() {
+        const sliderContainers = document.querySelectorAll('.video-container.with-slider');
+        sliderContainers.forEach(container => {
+            const sliderUI = container.querySelector('.slider-ui');
+            const videoFront = container.querySelector('.video-front');
+            let isTouchDragging = false;
+            if(videoFront) {
+                videoFront.addEventListener('loadedmetadata', () => {
+                    updateContainerLayout(container);
+                    syncSliderPositions();
+                });
+            }
+            const handleMove = (clientX) => {
+                const rect = sliderUI.getBoundingClientRect();
+                let x = clientX - rect.left;
+                x = Math.max(0, Math.min(x, rect.width));
+                currentSliderPercent = (x / rect.width) * 100;
+                syncSliderPositions();
+            };
+            sliderUI.addEventListener('mousemove', (e) => handleMove(e.clientX));
+            sliderUI.addEventListener('click', (e) => {
+                e.stopPropagation(); handleMove(e.clientX); toggleMasterPlayback();
+            });
+            sliderUI.addEventListener('touchstart', (e) => { isTouchDragging=true; handleMove(e.touches[0].clientX); }, {passive:false});
+            window.addEventListener('touchmove', (e) => { if(isTouchDragging){e.preventDefault(); handleMove(e.touches[0].clientX);} }, {passive:false});
+            window.addEventListener('touchend', () => { isTouchDragging=false; });
+        });
+    }
+
+        function syncSliderOverlay() {
+            const containerA = document.getElementById('slider-container-a');
+            const containerB = document.getElementById('slider-container-b');
+
+            if (!containerA || !containerB) return;
+
+            const isHovered = (el) => el.matches(':hover');
+
+            const updateOverlay = () => {
+                const isAnyHovered = isHovered(containerA) || isHovered(containerB);
+
+                [containerA, containerB].forEach(container => {
+                    if (isAnyHovered) {
+                        container.classList.add('no-overlay');
+                    } else {
+                        container.classList.remove('no-overlay');
+                    }
+                });
+            };
+            
+            containerA.addEventListener('mouseenter', updateOverlay);
+            containerA.addEventListener('mouseleave', updateOverlay);
+            
+            containerB.addEventListener('mouseenter', updateOverlay);
+            containerB.addEventListener('mouseleave', updateOverlay);
+        }
+        
+        syncSliderOverlay();
+
+    function toggleMasterPlayback() {
+        const master = document.querySelector('.compare-row video');
+        if (!master) return;
+        if (master.paused) master.play().catch(()=>{});
+        else master.pause();
+    }
+    
+    function changePage(direction) {
+        const totalPages = Math.ceil(videoData.length / ITEMS_PER_PAGE);
+        
+        currentPage += direction;
+        
+        if (currentPage < 0) currentPage = 0;
+        if (currentPage >= totalPages) currentPage = totalPages - 1;
+        
+        renderGallery();
+    }
+    let bentoPage=0; let bentoIndex=0; const BENTO_PER_PAGE=12; 
+    const bentoGrid=document.getElementById('bento-gallery-grid'); 
+    const bentoPageInfo=document.getElementById('bento-page-info');
+    const bPrevBtn=document.getElementById('bento-prev'); const bNextBtn=document.getElementById('bento-next');
+    
+    function renderGallery() {
+            if(!galleryGrid) return;
+            galleryGrid.innerHTML = '';
+
+            const totalItems = videoData.length;
+            const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+
+            const start = currentPage * ITEMS_PER_PAGE;
+            const end = Math.min(start + ITEMS_PER_PAGE, totalItems);
+            
+            const pageItems = videoData.slice(start, end);
+
+
+            pageItems.forEach((item, index) => {
+                const actualIndex = start + index; 
+                const div = document.createElement('div');
+                div.className = `gallery-item ${actualIndex === currentVideoIndex ? 'active' : ''}`;
+                div.onclick = () => loadVideoSet(actualIndex);
+
+                div.innerHTML = `
+                    <div style="position:relative; width:100%; aspect-ratio:16/9; pointer-events:none;">
+                        <video src="${item.ref}#t=0.01" muted preload="metadata" 
+                            style="width:100%; height:100%; object-fit:cover;"
+                            onloadeddata="this.currentTime=0.01"></video>
+                    </div>
+                    <div class="gallery-label">${item.title}</div>
+                `;
+                galleryGrid.appendChild(div);
+            });
+
+            if(pageInfo) pageInfo.textContent = `Page ${currentPage + 1} / ${totalPages}`;
+            
+            if(btnPrev) btnPrev.disabled = (currentPage === 0);
+            
+
+            if(btnNext) btnNext.disabled = (currentPage >= totalPages - 1);
+        }
+        function renderBentoGallery() {
+            if(!bentoGrid) return;
+            bentoGrid.innerHTML = '';
+
+            const totalItems = bentoData.length;
+            const totalPages = Math.ceil(totalItems / BENTO_PER_PAGE);
+
+            const start = bentoPage * BENTO_PER_PAGE;
+            const end = Math.min(start + BENTO_PER_PAGE, totalItems);
+            
+            const pageItems = bentoData.slice(start, end);
+
+            pageItems.forEach((item, idx) => {
+                const actualIdx = start + idx;
+                const div = document.createElement('div');
+                
+                div.className = `gallery-item ${actualIdx === bentoIndex ? 'active' : ''}`;
+                div.onclick = () => loadBentoSet(actualIdx);
+
+                div.innerHTML = `
+                    <div style="position:relative; width:100%; aspect-ratio:16/9; pointer-events:none;">
+                        <video src="${item.topLeft}#t=0.01" muted preload="metadata" 
+                            style="width:100%; height:100%; object-fit:cover;"
+                            onloadeddata="this.currentTime=0.01"></video>
+                    </div>
+                    <div class="gallery-label">${item.title}</div>
+                `;
+                
+                bentoGrid.appendChild(div);
+                
+                const v = div.querySelector('.gallery-thumb');
+                
+                if (v) { 
+                    v.addEventListener('loadeddata', () => {
+                        setTimeout(() => { 
+                            const c = document.createElement('canvas'); 
+                            c.width = v.videoWidth; 
+                            c.height = v.videoHeight; 
+                            
+                            v.currentTime = 0.02; 
+                            
+                            c.getContext('2d').drawImage(v, 0, 0);
+                            
+                            const i = document.createElement('img'); 
+                            i.src = c.toDataURL('image/jpeg'); 
+                            i.className = 'gallery-thumb'; 
+                            v.parentNode.replaceChild(i, v);
+                            
+                        }, 100); 
+                        
+                    }, { once: true });
+                    
+                    v.src = item.topLeft; 
+                }
+            });
+
+            const total = Math.ceil(bentoData.length / BENTO_PER_PAGE);
+            
+            if(bentoPageInfo) bentoPageInfo.textContent = `Page ${bentoPage + 1} / ${total}`;
+            
+            if(bPrevBtn) bPrevBtn.disabled = (bentoPage === 0);
+            
+            if(bNextBtn) bNextBtn.disabled = (bentoPage >= total - 1);
+        }
+    function changeBentoPage(dir){ bentoPage+=dir; renderBentoGallery(); }
+    function toggleBentoPlay(e) {
+        if (e.target.closest('button') || e.target.closest('.bento-switch-buttons')) return;
+
+        const master = document.getElementById('b-main');
+        if (!master) return;
+
+        if (master.paused) {
+            master.play().catch(()=>{});
+        } else {
+            master.pause();
+        }
+    }
+    const setBentoThumbnail = (video) => {
+        video.onloadeddata = function() {
+            this.currentTime = 0.01; 
+            this.onloadeddata = null; 
+        };  
+    };
+
+    function navigateComparison(direction) {
+            let newIndex = currentVideoIndex + direction;
+            
+            if (newIndex < 0) newIndex = videoData.length - 1;
+            if (newIndex >= videoData.length) newIndex = 0;
+            
+
+            loadVideoSet(newIndex);
+
+            currentPage = Math.floor(newIndex / ITEMS_PER_PAGE); 
+            renderGallery();
+        }
+
+    function navigateBento(direction) {
+            let newIndex = bentoIndex + direction;
+            
+            if (newIndex < 0) newIndex = bentoData.length - 1;
+            if (newIndex >= bentoData.length) newIndex = 0;
+            
+            loadBentoSet(newIndex);
+            
+            bentoPage = Math.floor(newIndex / BENTO_PER_PAGE);
+            renderBentoGallery();
+        }
+
+    function syncBentoVideos(m, s) {
+        s.forEach(x => { x.muted=true; x.loop=true; });
+        m.onplay=()=>s.forEach(x=>{x.currentTime=m.currentTime; x.play().catch(()=>{})});
+        m.onpause=()=>s.forEach(x=>x.pause());
+        m.onseeking=()=>s.forEach(x=>x.currentTime=m.currentTime);
+        m.ontimeupdate=()=>{if(m.paused)return; s.forEach(x=>{if(Math.abs(x.currentTime-m.currentTime)>0.05)x.currentTime=m.currentTime})};
+        m.onended=()=>{if(m.loop){m.currentTime=0;m.play();s.forEach(x=>{x.currentTime=0;x.play()})}};
+    }
+
+    
+
+    function switchBentoMain(viewType) {
+        const vMain = document.getElementById('b-main');
+        if (!vMain || !bentoData.length) return;
+
+        const data = bentoData[bentoIndex];
+        
+
+        if (data.current_view === viewType) return;
+        
+        const isPlaying = !vMain.paused;
+        const currentTime = vMain.currentTime;
+
+        data.current_view = viewType;
+        
+        const newSrc = (viewType === 'alpha' ? data.main_alpha : data.main_comp) + '#t=0.01';
+        vMain.src = newSrc;
+        
+        vMain.onloadedmetadata = () => {
+            
+            vMain.currentTime = 0.01; 
+            
+            if (isPlaying) {
+                vMain.currentTime = currentTime; 
+                vMain.play().catch(()=>{});
+            } else {
+                vMain.pause();
+            }
+            
+            const vTL = document.getElementById('b-top-left'); 
+            const vBL = document.getElementById('b-bot-left'); 
+            syncBentoVideos(vMain, [vTL, vBL].filter(v => v));
+            
+            // Adjust wrapper size based on new video aspect ratio
+            adjustBentoWrapperSize(vMain);
+            
+            vMain.onloadedmetadata = null;
+        };
+        
+        vMain.load();
+        
+
+        updateBentoSwitchButtons(viewType);
+    }
+
+
+    function updateBentoSwitchButtons(viewType) {
+        const btnAlpha = document.getElementById('btn-alpha');
+        const btnComp = document.getElementById('btn-comp');
+        
+        if (btnAlpha) btnAlpha.classList.toggle('active', viewType === 'alpha');
+        if (btnComp) btnComp.classList.toggle('active', viewType === 'comp');
+    }
+    
+    function adjustBentoWrapperSize(video) {
+        const wrapper = document.getElementById('bento-container');
+        if (!wrapper || !video) return;
+        
+        // Wait for video metadata to be loaded
+        if (video.videoWidth === 0 || video.videoHeight === 0) {
+            video.addEventListener('loadedmetadata', () => adjustBentoWrapperSize(video), { once: true });
+            return;
+        }
+        
+        const aspectRatio = video.videoWidth / video.videoHeight;
+        
+        // Remove existing aspect ratio classes
+        wrapper.classList.remove('portrait-video', 'landscape-video', 'square-video');
+        
+        // Apply appropriate class based on aspect ratio
+        if (aspectRatio < 0.75) {
+            // Portrait (height > width significantly)
+            wrapper.classList.add('portrait-video');
+        } else if (aspectRatio > 1.4) {
+            // Landscape (width > height significantly)
+            wrapper.classList.add('landscape-video');
+        } else if (aspectRatio >= 0.9 && aspectRatio <= 1.1) {
+            // Square-ish
+            wrapper.classList.add('square-video');
+        }
+        // Otherwise, use default styling (no additional class)
+    }
+
+    function syncGroup(m, s){
+        m.onplay=()=>s.forEach(x=>x&&x.play().catch(()=>{})); m.onpause=()=>s.forEach(x=>x&&x.pause());
+        m.onseeking=()=>s.forEach(x=>x&&(x.currentTime=m.currentTime));
+        m.ontimeupdate=()=>{if(m.paused)return; s.forEach(x=>{if(x&&Math.abs(x.currentTime-m.currentTime)>0.05)x.currentTime=m.currentTime;});};
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        initSyncedSliders();
+        if (videoData.length > 0) loadVideoSet(0);
+        window.addEventListener('resize', () => {
+            document.querySelectorAll('.video-container.with-slider').forEach(c => updateContainerLayout(c));
+            syncSliderPositions();
+        });
+        if(bentoData.length > 0) { loadBentoSet(0); renderBentoGallery(); }
+        const bentoContainer = document.getElementById('bento-container');
+        if (bentoContainer) {
+            bentoContainer.addEventListener('click', toggleBentoPlay);
+            bentoContainer.style.cursor = 'pointer'; 
+        }
+        const layoutContainer = document.getElementById('master-layout-container');
+        if (layoutContainer) {
+            loadNewLayoutSet(0);
+        }
+        
+        // Set playback speed for all videos (makes them play faster)
+        setGlobalPlaybackSpeed(1.5); // 1.5x speed - adjust as needed
+        
+        // Handle loading screen with actual content tracking
+        handleLoadingScreen();
+    });
+    
+    function setGlobalPlaybackSpeed(speed) {
+        // Set playback speed for all video elements on the page
+        document.querySelectorAll('video').forEach(video => {
+            video.playbackRate = speed;
+        });
+        
+        console.log(`Global playback speed set to ${speed}x`);
+    }
+    
+    function handleLoadingScreen() {
+        const loadingScreen = document.getElementById('loading-screen');
+        const loadingText = document.querySelector('.loader-text');
+        const body = document.body;
+        const minimumLoadTime = 3000; // 3 seconds minimum
+        const startTime = Date.now();
+        
+        let contentReady = false;
+        let minTimeReached = false;
+        
+        // Track loading progress
+        let loadingStatus = {
+            dom: false,
+            videos: false,
+            images: false
+        };
+        
+        // Update loading text
+        function updateLoadingText(text) {
+            if (loadingText) {
+                loadingText.textContent = text;
+            }
+        }
+        
+        // Check if all content is ready
+        function checkContentReady() {
+            if (loadingStatus.dom && loadingStatus.videos && loadingStatus.images) {
+                contentReady = true;
+                updateLoadingText('Content ready!');
+                tryHideLoader();
+            }
+        }
+        
+        // Function to hide loading screen only when both conditions are met
+        function tryHideLoader() {
+            if (contentReady && minTimeReached) {
+                loadingScreen.classList.add('fade-out');
+                body.classList.remove('loading');
+                body.classList.add('loaded');
+                
+                // Remove loading screen from DOM after animation
+                setTimeout(() => {
+                    if (loadingScreen.parentNode) {
+                        loadingScreen.parentNode.removeChild(loadingScreen);
+                    }
+                }, 500); // Match the CSS transition duration
+            }
+        }
+        
+        // Minimum time timer
+        setTimeout(() => {
+            minTimeReached = true;
+            tryHideLoader();
+        }, minimumLoadTime);
+        
+        // Track DOM ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                loadingStatus.dom = true;
+                updateLoadingText('Loading videos...');
+                checkContentReady();
+            });
+        } else {
+            loadingStatus.dom = true;
+        }
+        
+        // Track critical videos (the ones that load initially)
+        function trackInitialVideos() {
+            updateLoadingText('Preparing videos...');
+            
+            // Get all video elements that should be loaded initially
+            const criticalVideos = Array.from(document.querySelectorAll('video')).slice(0, 8); // Track first 8 videos
+            
+            if (criticalVideos.length === 0) {
+                loadingStatus.videos = true;
+                checkContentReady();
+                return;
+            }
+            
+            let videosLoaded = 0;
+            const totalVideos = criticalVideos.length;
+            
+            criticalVideos.forEach(video => {
+                const checkVideo = () => {
+                    videosLoaded++;
+                    updateLoadingText(`Loading videos (${videosLoaded}/${totalVideos})...`);
+                    
+                    if (videosLoaded >= totalVideos) {
+                        loadingStatus.videos = true;
+                        checkContentReady();
+                    }
+                };
+                
+                // Check if already loaded
+                if (video.readyState >= 3) { // HAVE_FUTURE_DATA or better
+                    checkVideo();
+                } else {
+                    video.addEventListener('loadeddata', checkVideo, { once: true });
+                    // Fallback if video fails to load
+                    video.addEventListener('error', checkVideo, { once: true });
+                }
+            });
+            
+            // Safety timeout for videos - don't wait forever
+            setTimeout(() => {
+                if (!loadingStatus.videos) {
+                    console.log('Video loading timeout - proceeding anyway');
+                    loadingStatus.videos = true;
+                    checkContentReady();
+                }
+            }, 4000); // 4 second timeout for videos
+        }
+        
+        // Track images
+        function trackImages() {
+            const images = Array.from(document.querySelectorAll('img'));
+            
+            if (images.length === 0) {
+                loadingStatus.images = true;
+                checkContentReady();
+                return;
+            }
+            
+            let imagesLoaded = 0;
+            const totalImages = images.length;
+            
+            images.forEach(img => {
+                if (img.complete) {
+                    imagesLoaded++;
+                } else {
+                    img.addEventListener('load', () => {
+                        imagesLoaded++;
+                        if (imagesLoaded >= totalImages) {
+                            loadingStatus.images = true;
+                            checkContentReady();
+                        }
+                    }, { once: true });
+                    img.addEventListener('error', () => {
+                        imagesLoaded++;
+                        if (imagesLoaded >= totalImages) {
+                            loadingStatus.images = true;
+                            checkContentReady();
+                        }
+                    }, { once: true });
+                }
+            });
+            
+            if (imagesLoaded >= totalImages) {
+                loadingStatus.images = true;
+                checkContentReady();
+            }
+        }
+        
+        // Wait for window load event, then start tracking videos
+        if (document.readyState === 'complete') {
+            trackInitialVideos();
+            trackImages();
+        } else {
+            window.addEventListener('load', () => {
+                trackInitialVideos();
+                trackImages();
+            });
+        }
+        
+        // Ultimate fallback: force hide after 6 seconds regardless
+        setTimeout(() => {
+            if (loadingScreen && !loadingScreen.classList.contains('fade-out')) {
+                console.log('Fallback timeout reached - hiding loader');
+                contentReady = true;
+                minTimeReached = true;
+                tryHideLoader();
+            }
+        }, 6000);
+    }
+
+</script>
+
+</div><!-- End of main-content wrapper -->
+
+</body>
+</html>
