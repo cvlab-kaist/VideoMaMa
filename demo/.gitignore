@@ -1,0 +1,65 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Gradio
+flagged/
+
+# Temporary files
+*.tmp
+temp/
+temp_*/
+*.log
+
+# Model checkpoints (download separately)
+checkpoints/*.pt
+checkpoints/*.pth
+checkpoints/*.safetensors
+checkpoints/*.bin
+
+# Videos
+samples/*.mp4
+samples/*.avi
+samples/*.mov
+*.mp4
+*.avi
+*.mov
+
+# OS
+.DS_Store
+Thumbs.db
+*.bak
+
+# Jupyter
+.ipynb_checkpoints/
