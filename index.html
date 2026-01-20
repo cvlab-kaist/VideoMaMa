@@ -178,43 +178,16 @@
             50%      { clip-path: inset(0 0 0 0);    } /* Red Filled State */
         }
 
-        /* Base Layer (Checkerboard) */
+        /* Title: plain Adobe red color, simpler style for clarity */
         h1.title-highlight {
             position: relative;
+            z-index: 0;
             display: inline-block;
-            color: transparent !important;
-            -webkit-text-fill-color: transparent !important;
-            /* -webkit-text-stroke: 0px transparent; */
-            -webkit-text-stroke: 0.5px #000000;
-            
-            background-image: conic-gradient(#bfbfbf 0.25turn, #ffffff 0.25turn 0.5turn, #bfbfbf 0.5turn 0.75turn, #ffffff 0.75turn);
-            background-size: 24px 24px;
-            -webkit-background-clip: text;
-            background-clip: text;
-        }
-
-        /* Overlay Layer (Solid color) */
-        h1.title-highlight::before {
-            content: attr(data-text);
-            position: absolute;
-            left: 0; top: 0; width: 100%; height: 100%;
-            color: transparent !important;
-            -webkit-text-fill-color: transparent !important;
-            -webkit-text-stroke: 1px transparent; 
-            
-            /* Use the loading screen's VideoMaMa gradient + shimmer so title matches loader */
-            /* Use the loading screen's VideoMaMa gradient exactly and keep outline/shadow for legibility */
-            background: linear-gradient(120deg, #ffffff, #ff6b6b, #ffffff);
-            background-size: 200% auto;
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent !important;
-
-            /* removed outline so the gradient shows cleanly */
+            color: #EA3323; 
+            -webkit-text-fill-color: #EA3323;
             -webkit-text-stroke: 0px transparent;
-
-            /* Shimmer (loader) + pulse */
-            animation: shimmer 3s linear infinite, pulseMatte 4s ease-in-out infinite;
+            font-weight: 700;
+            filter: none;
         }
 
 
@@ -1434,7 +1407,7 @@
                     <!-- Project Title with Gradient -->
                     <h1 class="title is-2 publication-title title-highlight" 
                         data-text="VideoMaMa:"
-                        style="font-size:64px; font-family: 'monospace', 'Arial', sans-serif; font-weight: 700; letter-spacing: 2px;">
+                        style="font-size:44px; font-family: 'monospace', 'Arial', sans-serif; font-weight: 700; letter-spacing: 2px;">
                         VideoMaMa:
                     </h1>
                     
@@ -1538,7 +1511,7 @@
                 and
                 <a href="https://github.com/cvlab-kaist/VideoMaMa/tree/main/demo" target="_blank" rel="noopener noreferrer">GitHub</a>.
             </p>
-            <div class="video-responsive-wrapper" id="youtube-wrapper" onmouseenter="focusVideo()">
+            <div class="video-responsive-wrapper" id="youtube-wrapper">
                 <iframe 
                     src="https://www.youtube.com/embed/FLIJaIeY8DU" 
                     title="VideoMaMa Presentation" 
@@ -1577,8 +1550,8 @@
                 <div class="bento-col-right">
                     <div class="bento-box big-box">
                         <div class="bento-switch-button">
-                            <button type="button" id="btn-alpha" class="bento-btn active" onclick="switchBentoMain('alpha')">Pred. Alpha</button>
-                            <button type="button" id="btn-comp" class="bento-btn" onclick="switchBentoMain('comp')">Composition</button>
+                            <button type="button" id="btn-comp" class="bento-btn active" onclick="switchBentoMain('comp')">Composition</button>
+                            <button type="button" id="btn-alpha" class="bento-btn" onclick="switchBentoMain('alpha')">Pred. Alpha</button>
                         </div>
                         <div class="bento-label-badge">Result</div>
                         <video id="b-main" class="bento-vid" muted loop playsinline preload="metadata">
@@ -2296,7 +2269,7 @@
             "botLeft": "videomama/0_cheerleader_mask.mp4",
             "main_alpha": "videomama/0_cheerleader_pred_alpha.mp4",
             "main_comp": "videomama/0_cheerleader_pred_greenscreen.mp4",
-            "current_view": "alpha"
+            "current_view": "comp"
         },
         {
             "id": 2,
@@ -2305,7 +2278,7 @@
             "botLeft": "videomama/0_ad1aa270_mask.mp4",
             "main_alpha": "videomama/0_ad1aa270_pred_alpha.mp4",
             "main_comp": "videomama/0_ad1aa270_pred_greenscreen.mp4",
-            "current_view": "alpha"
+            "current_view": "comp"
         },
         {
             "id": 3,
@@ -2314,7 +2287,7 @@
             "botLeft": "videomama/0_8cfc2be8_mask.mp4",
             "main_alpha": "videomama/0_8cfc2be8_pred_alpha.mp4",
             "main_comp": "videomama/0_8cfc2be8_pred_greenscreen.mp4",
-            "current_view": "alpha"
+            "current_view": "comp"
         },
         {
             "id": 4,
@@ -2323,7 +2296,7 @@
             "botLeft": "videomama/019020_mask.mp4",
             "main_alpha": "videomama/019020_pred_alpha.mp4",
             "main_comp": "videomama/019020_pred_greenscreen.mp4",
-            "current_view": "alpha"
+            "current_view": "comp"
         },
         {
             "id": 5,
@@ -2332,7 +2305,7 @@
             "botLeft": "videomama/019031_mask.mp4",
             "main_alpha": "videomama/019031_pred_alpha.mp4",
             "main_comp": "videomama/019031_pred_greenscreen.mp4",
-            "current_view": "alpha"
+            "current_view": "comp"
         },
         {
             "id": 6,
@@ -2341,7 +2314,7 @@
             "botLeft": "videomama/0_41c11e7f_mask.mp4",
             "main_alpha": "videomama/0_41c11e7f_pred_alpha.mp4",
             "main_comp": "videomama/0_41c11e7f_pred_greenscreen.mp4",
-            "current_view": "alpha"
+            "current_view": "comp"
         },
         {
             "id": 7,
@@ -2350,7 +2323,7 @@
             "botLeft": "videomama/0_994ca115_mask.mp4",
             "main_alpha": "videomama/0_994ca115_pred_alpha.mp4",
             "main_comp": "videomama/0_994ca115_pred_greenscreen.mp4",
-            "current_view": "alpha"
+            "current_view": "comp"
         },
         {
             "id": 8,
@@ -2359,7 +2332,7 @@
             "botLeft": "videomama/0_de7bf782_mask.mp4",
             "main_alpha": "videomama/0_de7bf782_pred_alpha.mp4",
             "main_comp": "videomama/0_de7bf782_pred_greenscreen.mp4",
-            "current_view": "alpha"
+            "current_view": "comp"
         },
         {
             "id": 9,
@@ -2368,7 +2341,7 @@
             "botLeft": "videomama/0_f12ccf3f_mask.mp4",
             "main_alpha": "videomama/0_f12ccf3f_pred_alpha.mp4",
             "main_comp": "videomama/0_f12ccf3f_pred_greenscreen.mp4",
-            "current_view": "alpha"
+            "current_view": "comp"
         },
         {
             "id": 10,
@@ -2377,7 +2350,7 @@
             "botLeft": "videomama/0_karina_3_mask.mp4",
             "main_alpha": "videomama/0_karina_3_pred_alpha.mp4",
             "main_comp": "videomama/0_karina_3_pred_greenscreen.mp4",
-            "current_view": "alpha"
+            "current_view": "comp"
         },
         {
             "id": 11,
@@ -2386,7 +2359,7 @@
             "botLeft": "videomama/387dc903_mask.mp4",
             "main_alpha": "videomama/387dc903_pred_alpha.mp4",
             "main_comp": "videomama/387dc903_pred_greenscreen.mp4",
-            "current_view": "alpha"
+            "current_view": "comp"
         },
         {
             "id": 12,
@@ -2395,7 +2368,7 @@
             "botLeft": "videomama/4dc4f8ae_mask.mp4",
             "main_alpha": "videomama/4dc4f8ae_pred_alpha.mp4",
             "main_comp": "videomama/4dc4f8ae_pred_greenscreen.mp4",
-            "current_view": "alpha"
+            "current_view": "comp"
         },
         {
             "id": 13,
@@ -2404,7 +2377,7 @@
             "botLeft": "videomama/5d426018_mask.mp4",
             "main_alpha": "videomama/5d426018_pred_alpha.mp4",
             "main_comp": "videomama/5d426018_pred_greenscreen.mp4",
-            "current_view": "alpha"
+            "current_view": "comp"
         },
         {
             "id": 14,
@@ -2413,7 +2386,7 @@
             "botLeft": "videomama/6be7a0ff_mask.mp4",
             "main_alpha": "videomama/6be7a0ff_pred_alpha.mp4",
             "main_comp": "videomama/6be7a0ff_pred_greenscreen.mp4",
-            "current_view": "alpha"
+            "current_view": "comp"
         },
         {
             "id": 15,
@@ -2422,7 +2395,7 @@
             "botLeft": "videomama/738d5a70_mask.mp4",
             "main_alpha": "videomama/738d5a70_pred_alpha.mp4",
             "main_comp": "videomama/738d5a70_pred_greenscreen.mp4",
-            "current_view": "alpha"
+            "current_view": "comp"
         },
         {
             "id": 16,
@@ -2431,7 +2404,7 @@
             "botLeft": "videomama/87ac746d_mask.mp4",
             "main_alpha": "videomama/87ac746d_pred_alpha.mp4",
             "main_comp": "videomama/87ac746d_pred_greenscreen.mp4",
-            "current_view": "alpha"
+            "current_view": "comp"
         },
         {
             "id": 17,
@@ -2440,7 +2413,7 @@
             "botLeft": "videomama/965299f9_mask.mp4",
             "main_alpha": "videomama/965299f9_pred_alpha.mp4",
             "main_comp": "videomama/965299f9_pred_greenscreen.mp4",
-            "current_view": "alpha"
+            "current_view": "comp"
         },
         {
             "id": 18,
@@ -2449,7 +2422,7 @@
             "botLeft": "videomama/a878ef19_mask.mp4",
             "main_alpha": "videomama/a878ef19_pred_alpha.mp4",
             "main_comp": "videomama/a878ef19_pred_greenscreen.mp4",
-            "current_view": "alpha"
+            "current_view": "comp"
         },
         {
             "id": 19,
@@ -2458,7 +2431,7 @@
             "botLeft": "videomama/d65b1313_mask.mp4",
             "main_alpha": "videomama/d65b1313_pred_alpha.mp4",
             "main_comp": "videomama/d65b1313_pred_greenscreen.mp4",
-            "current_view": "alpha"
+            "current_view": "comp"
         },
         {
             "id": 20,
@@ -2467,7 +2440,7 @@
             "botLeft": "videomama/f2473ff4_mask.mp4",
             "main_alpha": "videomama/f2473ff4_pred_alpha.mp4",
             "main_comp": "videomama/f2473ff4_pred_greenscreen.mp4",
-            "current_view": "alpha"
+            "current_view": "comp"
         },
         {
             "id": 21,
@@ -2476,7 +2449,7 @@
             "botLeft": "videomama/karina_1_mask.mp4",
             "main_alpha": "videomama/karina_1_pred_alpha.mp4",
             "main_comp": "videomama/karina_1_pred_greenscreen.mp4",
-            "current_view": "alpha"
+            "current_view": "comp"
         },
         {
             "id": 22,
@@ -2485,7 +2458,7 @@
             "botLeft": "videomama/karina_2_mask.mp4",
             "main_alpha": "videomama/karina_2_pred_alpha.mp4",
             "main_comp": "videomama/karina_2_pred_greenscreen.mp4",
-            "current_view": "alpha"
+            "current_view": "comp"
         },
         {
             "id": 23,
@@ -2494,7 +2467,7 @@
             "botLeft": "videomama/videoplayback_3_mask.mp4",
             "main_alpha": "videomama/videoplayback_3_pred_alpha.mp4",
             "main_comp": "videomama/videoplayback_3_pred_greenscreen.mp4",
-            "current_view": "alpha"
+            "current_view": "comp"
         },
         {
             "id": 24,
@@ -2503,7 +2476,7 @@
             "botLeft": "videomama/019006_mask.mp4",
             "main_alpha": "videomama/019006_pred_alpha.mp4",
             "main_comp": "videomama/019006_pred_greenscreen.mp4",
-            "current_view": "alpha"
+            "current_view": "comp"
         }
     ];
 
@@ -2545,7 +2518,7 @@
     let currentPage = 0;
     let currentVideoIndex = 0;
     let currentSliderPercent = 50; 
-    let bentoCurrentView = 'alpha'; 
+    let bentoCurrentView = 'comp'; 
     let newLayoutIndex = 0; 
     let currentGlobalMode = 'alpha';
 
@@ -2555,23 +2528,6 @@
     const btnNext = document.getElementById('btn-next');
 
     
-    function focusVideo() {
-            const wrapper = document.getElementById('youtube-wrapper');
-            if (!wrapper) return;
-
-            // Calculate position to center the video vertically in the viewport
-            const rect = wrapper.getBoundingClientRect();
-            const absoluteTop = rect.top + window.scrollY;
-            const centerPosition = absoluteTop - (window.innerHeight / 2) + (rect.height / 2);
-
-            // Scroll smoothly to that position
-            window.scrollTo({
-                top: centerPosition,
-                behavior: 'smooth'
-            });
-        }
-
-
     function syncAllVideos() {
         const allVideos = document.querySelectorAll('.compare-row video');
         
