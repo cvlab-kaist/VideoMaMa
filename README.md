@@ -2,8 +2,8 @@
 <h1>VideoMaMa: Mask-Guided Video Matting via Generative Prior</h1>
 
 [**Sangbeom Lim**](https://sites.google.com/view/sangbeomlim/home)<sup>1</sup> · [**Seoung Wug Oh**](https://sites.google.com/view/seoungwugoh)<sup>2</sup> · [**Jiahui Huang**](https://gabriel-huang.github.io/)<sup>2</sup> · [**Heeji Yoon**](https://yoon-heez.github.io/
-)<sup>2</sup>  
-[**Seungryong Kim**](https://cvlab.korea.ac.kr)<sup>1</sup> · [**Joon-Young Lee**](https://joonyoung-cv.github.io)<sup>2</sup>
+)<sup>3</sup>  
+[**Seungryong Kim**](https://cvlab.kaist.ac.kr/members/faculty)<sup>3</sup> · [**Joon-Young Lee**](https://joonyoung-cv.github.io)<sup>2</sup>
 
 <sup>1</sup>Korea University&emsp;&emsp;&emsp;&emsp;<sup>2</sup>Adobe Research&emsp;&emsp;&emsp;&emsp;<sup>3</sup>KAIST AI
 
