@@ -19,10 +19,10 @@ echo "This may take a few minutes (file size: ~900MB)..."
 
 if command -v wget &> /dev/null; then
     wget https://dl.fbaipublicfiles.com/segment_anything_2/072824/sam2_hiera_large.pt \
-         -O checkpoints/sam2_hiera_large.pt
+         -O checkpoints/sam2/sam2_hiera_large.pt
 elif command -v curl &> /dev/null; then
     curl -L https://dl.fbaipublicfiles.com/segment_anything_2/072824/sam2_hiera_large.pt \
-         -o checkpoints/sam2_hiera_large.pt
+         -o checkpoints/sam2/sam2_hiera_large.pt
 else
     echo "❌ Error: Neither wget nor curl is available. Please install one of them."
     exit 1
@@ -33,14 +33,14 @@ echo ""
 
 # Check if VideoMaMa checkpoint exists
 echo "Checking VideoMaMa checkpoint..."
-if [ -d "checkpoints/videomama_unet" ]; then
-    if [ -f "checkpoints/videomama_unet/config.json" ] && \
-       { [ -f "checkpoints/videomama_unet/diffusion_pytorch_model.safetensors" ] || \
-         [ -f "checkpoints/videomama_unet/diffusion_pytorch_model.bin" ]; }; then
+if [ -d "checkpoints/VideoMaMa" ]; then
+    if [ -f "checkpoints/VideoMaMa/config.json" ] && \
+       { [ -f "checkpoints/VideoMaMa/diffusion_pytorch_model.safetensors" ] || \
+         [ -f "checkpoints/VideoMaMa/diffusion_pytorch_model.bin" ]; }; then
         echo "✓ VideoMaMa checkpoint already exists"
     else
         echo "⚠️  VideoMaMa checkpoint directory exists but is incomplete"
-        echo "   Please add the following files to checkpoints/videomama_unet/:"
+        echo "   Please add the following files to checkpoints/VideoMaMa/:"
         echo "   - config.json"
         echo "   - diffusion_pytorch_model.safetensors (or .bin)"
     fi
@@ -48,14 +48,14 @@ else
     echo "⚠️  VideoMaMa checkpoint not found"
     echo ""
     echo "📝 Manual step required:"
-    echo "   1. Create directory: checkpoints/videomama_unet/"
+    echo "   1. Create directory: checkpoints/VideoMaMa/"
     echo "   2. Copy your trained VideoMaMa checkpoint files:"
     echo "      - config.json"
     echo "      - diffusion_pytorch_model.safetensors (or .bin)"
     echo ""
     echo "   Example:"
-    echo "   mkdir -p checkpoints/videomama_unet"
-    echo "   cp /path/to/your/checkpoint/* checkpoints/videomama_unet/"
+    echo "   mkdir -p checkpoints/VideoMaMa"
+    echo "   cp /path/to/your/checkpoint/* checkpoints/VideoMaMa/"
 fi
 
 echo ""

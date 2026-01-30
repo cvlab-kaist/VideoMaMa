@@ -71,8 +71,8 @@ def load_videomama_pipeline(device="cuda"):
         VideoInferencePipeline instance
     """
     # Local paths for testing
-    base_model_path = "/home/cvlab19/project/samuel/data/CVPR/pretrained_models/stable-video-diffusion-img2vid-xt"
-    unet_checkpoint_path = "/home/cvlab19/project/samuel/data/CVPR/pretrained_models/videomama"
+    base_model_path = "checkpoints/stable-video-diffusion-img2vid-xt"
+    unet_checkpoint_path = "checkpoints/VideoMaMa"
     
     print(f"Loading VideoMaMa pipeline from {unet_checkpoint_path}...")
     
