@@ -25,7 +25,10 @@ For more visual results, go checkout our <a href="https://cvlab-kaist.github.io/
 </div>
 
 ## 📰 News
+VideoMaMa is an open-source project. If you find our work helpful, please consider giving this repository a ⭐.  
+
 * **2026-01-19:** Our [Github Repo](https://github.com/cvlab-kaist/VideoMaMa) is opened!
+* **2026-02-07** [ComfyUI-VideoMaMa](https://github.com/okdalto/ComfyUI-VideoMaMa) is now available! (Thanks to [@okdalto](https://github.com/okdalto)))
 
 **Note: Training code is currently under internal review. Release coming soon.**
 
