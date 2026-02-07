@@ -28,7 +28,7 @@ For more visual results, go checkout our <a href="https://cvlab-kaist.github.io/
 VideoMaMa is an open-source project. If you find our work helpful, please consider giving this repository a ⭐.  
 
 * **2026-01-19:** Our [Github Repo](https://github.com/cvlab-kaist/VideoMaMa) is opened!
-* **2026-02-07** [ComfyUI-VideoMaMa](https://github.com/okdalto/ComfyUI-VideoMaMa) is now available! (Thanks to [@okdalto](https://github.com/okdalto)))
+* **2026-02-07** [ComfyUI-VideoMaMa](https://github.com/okdalto/ComfyUI-VideoMaMa) is now available! (Thanks to [@okdalto](https://github.com/okdalto))
 
 **Note: Training code is currently under internal review. Release coming soon.**
 
@@ -96,7 +96,12 @@ Please check [evaluation readme](evaluation/README.md). -->
 
 # 🎓 Citation
 ```
-
+@article{lim2026videomama,
+  title={VideoMaMa: Mask-Guided Video Matting via Generative Prior},
+  author={Lim, Sangbeom and Oh, Seoung Wug and Huang, Jiahui and Yoon, Heeji and Kim, Seungryong and Lee, Joon-Young},
+  journal={arXiv preprint arXiv:2601.14255},
+  year={2026}
+}
 ```
 
 
