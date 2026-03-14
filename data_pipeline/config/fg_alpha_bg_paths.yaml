@@ -1,0 +1,15 @@
+foreground_sources:
+  # This will be treated as a sequence of frames
+  - type: video
+    fg_path: <video dataset path>/fg
+    alpha_path: <video dataset path>/alpha
+  
+  - type: image
+    fg_path: <image dataset path>/blurred_image
+    alpha_path: <image dataset path>/mask
+
+# Each path here is a PARENT directory containing video folders
+#  - /path/to/all_nature_backgrounds/
+background_sources:
+  - <background dataset path>
+

@@ -187,12 +187,7 @@ temp.sh
 test_ablation.sh
 
 # After internal review
-/samuel_onestep_dino.py
-/dataloader
-/training_scripts
-/data_pipeline
-/training.md
 /src/s3_utils.py
 /src/video_html_generation.py
-/src/*_loss.py
 /src/original_inference.py
+/src/vos_loss.py

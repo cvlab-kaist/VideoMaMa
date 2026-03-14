@@ -29,14 +29,13 @@ VideoMaMa is an open-source project. If you find our work helpful, please consid
 
 * **2026-01-19:** Our [Github Repo](https://github.com/cvlab-kaist/VideoMaMa) is opened!
 * **2026-02-07** [ComfyUI-VideoMaMa](https://github.com/okdalto/ComfyUI-VideoMaMa) is now available! (Thanks to [@okdalto](https://github.com/okdalto))
-
-**Note: Training code is currently under internal review. Release coming soon.**
+* **2026-03-13** VideoMaMa is implemented on [CorridorKey](https://github.com/nikopueringer/CorridorKey)! (Thanks for [@nikopueringer] for incredible work!)
 
 
 ## 🔥 TODO
-- [x] Release Demo & Model checkpoint. (Jan 19, 2025)
-- [x] Release ArXiv paper. (Jan 19, 2025)
-- [ ] Release Training Code.
+- [x] Release Demo & Model checkpoint. (Jan 19, 2026)
+- [x] Release ArXiv paper. (Jan 19, 2026)
+- [x] Release Training Code. (Mar 14, 2026)
 - [ ] Evaluation Code.
 - [ ] Release MA-V dataset.
 
