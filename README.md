@@ -7,7 +7,7 @@
 
 <sup>1</sup>Korea University&emsp;&emsp;&emsp;&emsp;<sup>2</sup>Adobe Research&emsp;&emsp;&emsp;&emsp;<sup>3</sup>KAIST AI
 
-**ArXiv 2026**
+**CVPR 2026**
 
 <a href="https://arxiv.org/abs/2601.14255"><img src='https://img.shields.io/badge/arXiv-VideoMaMa-red' alt='Paper PDF'></a>
 <a href='https://cvlab-kaist.github.io/VideoMaMa/'><img src='https://img.shields.io/badge/Project_Page-VideoMaMa-green' alt='Project Page'></a>
