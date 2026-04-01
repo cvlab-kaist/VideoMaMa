@@ -30,6 +30,7 @@ VideoMaMa is an open-source project. If you find our work helpful, please consid
 * **2026-01-19:** Our [Github Repo](https://github.com/cvlab-kaist/VideoMaMa) is opened!
 * **2026-02-07** [ComfyUI-VideoMaMa](https://github.com/okdalto/ComfyUI-VideoMaMa) is now available! (Thanks to [@okdalto](https://github.com/okdalto))
 * **2026-03-13** VideoMaMa is implemented on [CorridorKey](https://github.com/nikopueringer/CorridorKey)! (Thanks for [@nikopueringer](https://github.com/nikopueringer) for incredible work!)
+* **2026-04-01** VideoMaMa is implemented on [Sammie-Roto-2](https://github.com/Zarxrax/Sammie-Roto-2)! (Thanks for [@Zarxrax](https://github.com/Zarxrax) using our model!)
 
 
 ## 🔥 TODO
