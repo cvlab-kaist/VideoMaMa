@@ -187,7 +187,6 @@ temp.sh
 test_ablation.sh
 
 # After internal review
-/src/s3_utils.py
 /src/video_html_generation.py
 /src/original_inference.py
 /src/vos_loss.py
