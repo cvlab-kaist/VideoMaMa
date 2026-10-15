@@ -918,6 +918,7 @@ class VideoInferencePipeline:
                 mask_latents = mask_latents / self.vae.config.scaling_factor
             elif mask_cond_mode == "interpolate":
                 target_shape = cond_latents.shape[-2:]
+                mask_video_tensor = mask_video_tensor.mean(dim=2, keepdim=True).to(self.weight_dtype)
                 b, t, c, h, w = mask_video_tensor.shape
                 mask_video_reshaped = rearrange(mask_video_tensor, "b t c h w -> (b t) c h w")
                 interpolated_mask = F.interpolate(mask_video_reshaped, size=target_shape, mode='bilinear',
