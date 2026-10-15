@@ -64,7 +64,7 @@ For inferencing video use this command.
 python inference_onestep_folder.py \
 --base_model_path "<stabilityai/stable-video-diffusion-img2vid-xt_path>" \
 --unet_checkpoint_path "<videomama_checkpoint_path>" \
---image_root_path "/assets/example/image" \
+--image_root_path "assets/example/image" \
 --mask_root_path "assets/example/mask" \
 --output_dir "assets/example" \
 [--optional_arguments]
@@ -75,7 +75,7 @@ For example, If you have setup using above command, this example bash will work.
 python inference_onestep_folder.py \
     --base_model_path "checkpoints/stable-video-diffusion-img2vid-xt" \
     --unet_checkpoint_path "checkpoints/VideoMaMa" \
-    --image_root_path "/assets/example/image" \
+    --image_root_path "assets/example/image" \
     --mask_root_path "assets/example/mask" \
     --output_dir "assets/example" \
     --keep_aspect_ratio 
