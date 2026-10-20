@@ -15,6 +15,8 @@
 <img src="https://img.shields.io/badge/Demo-%F0%9F%A4%97%20Hugging%20Face-blue">
 </a>
 
+### 🎉 [VideoMaMa++](https://github.com/cvlab-kaist/VideoMaMa) is now available!
+
 <strong>VideoMaMa is a mask-guided video matting framework that leverages a video generative prior. By utilizing this prior, it supports stable performance across diverse video domains with fine-grained matting quality.</strong>
 
 <div style="width: 100%; text-align: center; margin:auto;">
@@ -31,6 +33,7 @@ VideoMaMa is an open-source project. If you find our work helpful, please consid
 * **2026-02-07** [ComfyUI-VideoMaMa](https://github.com/okdalto/ComfyUI-VideoMaMa) is now available! (Thanks to [@okdalto](https://github.com/okdalto))
 * **2026-03-13** VideoMaMa is implemented on [CorridorKey](https://github.com/nikopueringer/CorridorKey)! (Thanks for [@nikopueringer](https://github.com/nikopueringer) for incredible work!)
 * **2026-04-01** VideoMaMa is implemented on [Sammie-Roto-2](https://github.com/Zarxrax/Sammie-Roto-2)! (Thanks for [@Zarxrax](https://github.com/Zarxrax) using our model!)
+* **2026-10-20** 🎉 [VideoMaMa++](https://github.com/cvlab-kaist/VideoMaMa) is out!
 
 
 ## 🔥 TODO
