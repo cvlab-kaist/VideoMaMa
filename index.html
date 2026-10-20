@@ -144,6 +144,43 @@
             50% { opacity: 1; }
         }
         
+        .loader-news {
+            display: inline-block;
+            margin-bottom: 2rem;
+            padding: 0.5rem 1.2rem;
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.15);
+            color: #ffffff;
+            font-size: 1rem;
+            text-decoration: none;
+            transition: background 0.2s ease;
+        }
+
+        .loader-news:hover {
+            background: rgba(255, 255, 255, 0.3);
+            color: #ffffff;
+        }
+
+        .news-banner {
+            display: inline-block;
+            margin-top: 0.75rem;
+            padding: 0.6rem 1.4rem;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            color: #ffffff !important;
+            font-size: 1.05rem;
+            font-weight: 600;
+            text-decoration: none;
+            box-shadow: 0 4px 14px rgba(102, 126, 234, 0.35);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .news-banner:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 18px rgba(102, 126, 234, 0.5);
+        }
+
         /* Hide main content initially */
         body.loading #main-content {
             opacity: 0;
@@ -1387,6 +1424,9 @@
     <div class="loader-content">
         <div class="loader-title">VideoMaMa</div>
         <div class="loader-subtitle">Mask-Guided Video Matting via Generative Prior</div>
+        <a class="loader-news" href="https://github.com/cvlab-kaist/VideoMaMa" target="_blank" rel="noopener noreferrer">
+            🎉 <strong>VideoMaMa++</strong> is out! Check it out on GitHub &rarr;
+        </a>
         <div class="loader-spinner"></div>
         <div class="loader-progress">
             <div class="loader-progress-bar"></div>
@@ -1443,7 +1483,7 @@
                     <!-- Conference -->
                     <div class="is-size-5 publication-authors">
                         <span class="author-block">
-                            <strong style="color: #3b7ccb;">arXiv 2026</strong>
+                            <strong style="color: #3b7ccb;">CVPR 2026</strong>
                         </span>
                     </div>
 
@@ -1494,6 +1534,11 @@
                                 </a>
                             </span>
                         </div>
+
+                        <!-- VideoMaMa++ Announcement -->
+                        <a class="news-banner" href="https://github.com/cvlab-kaist/VideoMaMa" target="_blank" rel="noopener noreferrer">
+                            🎉 New: <strong style="color: #ffffff;">VideoMaMa++</strong> is now available! &rarr;
+                        </a>
                     </div>
                 </div>
             </div>
