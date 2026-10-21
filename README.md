@@ -15,7 +15,7 @@
 <img src="https://img.shields.io/badge/Demo-%F0%9F%A4%97%20Hugging%20Face-blue">
 </a>
 
-### 🎉 [VideoMaMa++](https://github.com/cvlab-kaist/VideoMaMa) is now available!
+### 🎉 [VideoMaMa++](https://github.com/cvlab-kaist/VideoMaMa-PlusPlus) is now available!
 
 <strong>VideoMaMa is a mask-guided video matting framework that leverages a video generative prior. By utilizing this prior, it supports stable performance across diverse video domains with fine-grained matting quality.</strong>
 
